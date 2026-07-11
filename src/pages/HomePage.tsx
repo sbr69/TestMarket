@@ -75,6 +75,34 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const addItem = useCartStore(state => state.addItem);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [timeLeft, setTimeLeft] = useState({ hours: 4, minutes: 12, seconds: 39 });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        let { hours, minutes, seconds } = prev;
+        if (seconds > 0) {
+          seconds--;
+        } else {
+          seconds = 59;
+          if (minutes > 0) {
+            minutes--;
+          } else {
+            minutes = 59;
+            if (hours > 0) {
+              hours--;
+            } else {
+              hours = 4;
+              minutes = 12;
+              seconds = 39;
+            }
+          }
+        }
+        return { hours, minutes, seconds };
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Auto-advance carousel
   useEffect(() => {
@@ -192,7 +220,14 @@ export default function HomePage() {
               </div>
               <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-red-100 shadow-sm">
                 <Clock className="w-4 h-4 text-gray-500" />
-                <span className="text-sm font-bold text-gray-700">Ends in: <span className="text-red-600">04:12:39</span></span>
+                <span className="text-sm font-bold text-gray-700">
+                  Ends in:{' '}
+                  <span className="text-red-600 font-mono">
+                    {String(timeLeft.hours).padStart(2, '0')}:
+                    {String(timeLeft.minutes).padStart(2, '0')}:
+                    {String(timeLeft.seconds).padStart(2, '0')}
+                  </span>
+                </span>
               </div>
             </div>
             
@@ -309,7 +344,7 @@ export default function HomePage() {
             <div className="relative z-10 p-8 sm:p-12 md:w-1/2">
               <h2 className="text-3xl font-bold text-white mb-4">Premium Accessories for Modern Life</h2>
               <p className="text-gray-300 mb-6">Upgrade your workspace with our curated selection of high-end tech accessories.</p>
-              <Link to="/?category=electronics" className="inline-block py-3 px-6 bg-white text-gray-900 font-bold rounded-lg hover:bg-gray-100 transition-colors">
+              <Link to="/?category=fashion" className="inline-block py-3 px-6 bg-white text-gray-900 font-bold rounded-lg hover:bg-gray-100 transition-colors">
                 Shop Accessories
               </Link>
             </div>

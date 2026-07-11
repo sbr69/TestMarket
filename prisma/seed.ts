@@ -93,7 +93,7 @@ async function main() {
       stock: 43,
       rating: 4.9,
       reviewCount: 465,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1578306869408-da9204fb5b45?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/61kjXatIUqL._SX522_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Electronics'].id,
@@ -119,7 +119,7 @@ async function main() {
       stock: 19,
       rating: 4.6,
       reviewCount: 419,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/61tY8Vx6GSL._AC_SY879_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Electronics'].id,
@@ -171,7 +171,7 @@ async function main() {
       stock: 22,
       rating: 4.4,
       reviewCount: 264,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1587049352847-81a56d773c1c?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/7124ixWZHpL._SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Grocery'].id,
@@ -197,7 +197,7 @@ async function main() {
       stock: 35,
       rating: 5.0,
       reviewCount: 231,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/81loucHrZNL._SX679_PIbundle-2,TopRight,0,0_AA679SH20_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Grocery'].id,
@@ -210,7 +210,7 @@ async function main() {
       stock: 33,
       rating: 4.8,
       reviewCount: 471,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1584916201218-f4242ceb4809?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/71rK6Ig+o1L._SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Grocery'].id,
@@ -236,7 +236,7 @@ async function main() {
       stock: 43,
       rating: 4.8,
       reviewCount: 53,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1628236173041-073c683b7b3d?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/61lmyI99e1L._SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Grocery'].id,
@@ -249,7 +249,7 @@ async function main() {
       stock: 75,
       rating: 4.5,
       reviewCount: 128,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1585860368142-ff59f8a32dfc?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/716sPT2WADL._SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Grocery'].id,
@@ -340,7 +340,7 @@ async function main() {
       stock: 45,
       rating: 4.2,
       reviewCount: 178,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1629196914561-39c2776c5b9d?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/81Ua99CURsL._SY522_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Books'].id,
@@ -392,7 +392,7 @@ async function main() {
       stock: 41,
       rating: 4.1,
       reviewCount: 15,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1476275466078-4007374efac4?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/81T4dS6IkaL._SY522_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Books'].id,
@@ -405,7 +405,7 @@ async function main() {
       stock: 73,
       rating: 4.0,
       reviewCount: 121,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1511556820780-d912e42b4980?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/81O7u0dGaWL._SY522_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Books'].id,
@@ -431,7 +431,7 @@ async function main() {
       stock: 58,
       rating: 4.2,
       reviewCount: 409,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/714oebh-u2L._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Fashion'].id,
@@ -457,7 +457,7 @@ async function main() {
       stock: 74,
       rating: 4.3,
       reviewCount: 114,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1596755094514-f87e32f85e2c?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/71LUJgXAGxL._AC_SY879_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Fashion'].id,
@@ -561,7 +561,7 @@ async function main() {
       stock: 107,
       rating: 4.3,
       reviewCount: 102,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/61-crgly-8L._AC_SY879_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Home & Kitchen'].id,
@@ -587,7 +587,7 @@ async function main() {
       stock: 101,
       rating: 4.3,
       reviewCount: 49,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1584990347449-a3e9c5ebc3b6?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/81jZNuVLr7L._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Home & Kitchen'].id,
@@ -626,7 +626,7 @@ async function main() {
       stock: 96,
       rating: 5.0,
       reviewCount: 74,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1574626003503-4c570b797b5d?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/61tYwvWR9+L._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Home & Kitchen'].id,
@@ -639,7 +639,7 @@ async function main() {
       stock: 105,
       rating: 4.9,
       reviewCount: 15,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1595224056624-916b206beaf7?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/71EfmuBo3gL._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Home & Kitchen'].id,
@@ -652,7 +652,7 @@ async function main() {
       stock: 65,
       rating: 4.1,
       reviewCount: 361,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1592316491754-0eb47d34b35e?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/71CvJCoQWrL._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Home & Kitchen'].id,
@@ -665,7 +665,7 @@ async function main() {
       stock: 31,
       rating: 4.5,
       reviewCount: 460,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1606760227091-3dd870d97f1d?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/81BJf71smLL._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Home & Kitchen'].id,
@@ -730,7 +730,7 @@ async function main() {
       stock: 88,
       rating: 4.9,
       reviewCount: 502,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/81sC1hrQBsL._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Sports'].id,
@@ -769,7 +769,7 @@ async function main() {
       stock: 101,
       rating: 4.6,
       reviewCount: 243,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1504280387367-361c6d9e38f4?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/61b3VeJSMFL._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Sports'].id,
@@ -782,7 +782,7 @@ async function main() {
       stock: 64,
       rating: 4.7,
       reviewCount: 140,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/51QdW8fJc0L._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Sports'].id,
@@ -808,7 +808,7 @@ async function main() {
       stock: 39,
       rating: 4.2,
       reviewCount: 205,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1518609571773-39b7d303a87b?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/61yQzrV3SVL._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Beauty'].id,
@@ -821,7 +821,7 @@ async function main() {
       stock: 69,
       rating: 4.1,
       reviewCount: 80,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1608248593842-8d76e73cba53?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/61U+PCANeOL._SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Beauty'].id,
@@ -860,7 +860,7 @@ async function main() {
       stock: 22,
       rating: 4.1,
       reviewCount: 154,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1596462502278-27bf85033e5a?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/81gM3HUH51L._SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Beauty'].id,
@@ -873,7 +873,7 @@ async function main() {
       stock: 35,
       rating: 4.0,
       reviewCount: 124,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1512496015851-a1cbfb40a327?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/615weN41jHL._SX522_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Beauty'].id,
@@ -886,7 +886,7 @@ async function main() {
       stock: 76,
       rating: 4.6,
       reviewCount: 142,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1601049541289-9b1b7ce8108a?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/61eXQt9+L0L._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Beauty'].id,
@@ -912,7 +912,7 @@ async function main() {
       stock: 36,
       rating: 4.5,
       reviewCount: 398,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1556228720-1c2a632af0c0?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/71XyYn0Zv7L._SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Beauty'].id,
@@ -925,7 +925,7 @@ async function main() {
       stock: 38,
       rating: 4.8,
       reviewCount: 473,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1532453288672-3a27e9be9efd?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://mughais.com/wp-content/uploads/2024/07/Charcoal-clay-Mask.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Beauty'].id,
@@ -938,7 +938,7 @@ async function main() {
       stock: 21,
       rating: 4.2,
       reviewCount: 374,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1615397323382-f3f271295db2?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/511VdTzAucL._SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Toys'].id,
@@ -1016,7 +1016,7 @@ async function main() {
       stock: 70,
       rating: 4.1,
       reviewCount: 109,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffaed?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/71GM6UFejTL._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Toys'].id,
@@ -1029,7 +1029,7 @@ async function main() {
       stock: 103,
       rating: 4.5,
       reviewCount: 419,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1558066551-7890f545a0de?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/818rEgBSmtL._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Toys'].id,
@@ -1055,7 +1055,7 @@ async function main() {
       stock: 67,
       rating: 4.8,
       reviewCount: 113,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/81na3-wy1SL._AC_SX679_.jpg', sortOrder: 0 }] }
     },
     {
       categoryId: categoryMap['Toys'].id,
@@ -1068,7 +1068,7 @@ async function main() {
       stock: 17,
       rating: 5.0,
       reviewCount: 294,
-      images: { create: [{ url: 'https://images.unsplash.com/photo-1533512396116-2b47f48b1115?w=800&q=80', sortOrder: 0 }] }
+      images: { create: [{ url: 'https://m.media-amazon.com/images/I/61MQ0r3rACL._AC_SX679_.jpg', sortOrder: 0 }] }
     },
   ];
 

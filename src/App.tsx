@@ -57,11 +57,17 @@ function Navigation({ onOpenAuth }: { onOpenAuth: () => void }) {
   const { user } = useAuthStore();
   
   return (
-    <header className="sticky top-0 z-50 bg-[#1B1F5E] border-b border-indigo-900 text-white shadow-md">
+    <>
+      <div className="bg-[#EAB308] text-gray-900 text-xs font-bold text-center py-1.5 px-4 shadow-sm relative z-50">
+        ⚠️ DEMO STORE: This website is created for testing purposes only. No actual orders or transactions are processed.
+      </div>
+      <header className="sticky top-0 z-50 bg-[#1B1F5E] border-b border-indigo-900 text-white shadow-md">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 font-bold tracking-tight text-2xl text-white hover:text-gray-200 transition-colors">
-          <Store className="w-7 h-7 text-[#F97316]" />
-          <span className="hidden sm:inline font-sans">GrandMarket</span>
+          <div className="flex items-center justify-center bg-[#F97316] rounded-xl p-1.5 shadow-md">
+            <Store className="w-5 h-5 text-white" />
+          </div>
+          <span className="hidden sm:inline font-sans">TestMarket</span>
         </Link>
         
         <SearchBar />
@@ -94,6 +100,7 @@ function Navigation({ onOpenAuth }: { onOpenAuth: () => void }) {
         </nav>
       </div>
     </header>
+    </>
   );
 }
 
@@ -119,10 +126,12 @@ export default function App() {
           <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-2 font-bold tracking-tight text-xl text-white mb-4">
-                <Store className="w-6 h-6 text-[#F97316]" />
-                <span className="font-sans">GrandMarket</span>
+                <div className="flex items-center justify-center bg-[#F97316] rounded-lg p-1.5">
+                  <Store className="w-4 h-4 text-white" />
+                </div>
+                <span className="font-sans">TestMarket</span>
               </div>
-              <p className="text-sm">The best place to buy everything you need at the lowest prices.</p>
+              <p className="text-sm text-[#EAB308] font-bold">⚠️ DEMO ONLY: This is a non-production test website. No real orders will be processed.</p>
             </div>
             <div>
               <h4 className="text-white font-bold mb-4">Quick Links</h4>
@@ -145,14 +154,14 @@ export default function App() {
             <div>
               <h4 className="text-white font-bold mb-4">Contact Info</h4>
               <ul className="space-y-2 text-sm">
-                <li>support@grandmarket.com</li>
+                <li>support@testmarket.com</li>
                 <li>1-800-GRAND-MKT</li>
                 <li>123 Market St, San Francisco, CA 94105</li>
               </ul>
             </div>
           </div>
           <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-8 border-t border-gray-800 text-sm text-center">
-            &copy; {new Date().getFullYear()} GrandMarket. All rights reserved.
+            &copy; {new Date().getFullYear()} TestMarket. All rights reserved.
           </div>
         </footer>
 

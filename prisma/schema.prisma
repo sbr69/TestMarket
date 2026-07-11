@@ -20,6 +20,7 @@ model User {
   orders       Order[]
   reviews      Review[]
   wishlist     Wishlist[]
+  authCodes    OAuthAuthCode[]
 }
 
 model Address {
@@ -163,4 +164,23 @@ model Wishlist {
   createdAt DateTime @default(now())
 
   @@unique([userId, productId])
+}
+
+model OAuthClient {
+  id           String   @id @default(uuid())
+  clientId     String   @unique
+  clientSecret String
+  name         String
+  redirectUris String
+  createdAt    DateTime @default(now())
+}
+
+model OAuthAuthCode {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  clientId    String
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  redirectUri String
+  expiresAt   DateTime
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ShoppingCart, Store, User as UserIcon, Search, ChevronDown } from 'lucide-react';
 
 import { useCartStore } from './store/cartStore';
@@ -11,6 +12,7 @@ import CartPage from './pages/CartPage';
 import AccountPage from './pages/AccountPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import CheckoutPage from './pages/CheckoutPage';
+import OAuthConsentPage from './pages/OAuthConsentPage';
 import ToastContainer from './components/ToastContainer';
 import AuthModal from './components/AuthModal';
 
@@ -105,12 +107,13 @@ function Navigation({ onOpenAuth }: { onOpenAuth: () => void }) {
 }
 
 export default function App() {
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const { isAuthModalOpen, setAuthModalOpen } = useAuthStore();
 
   return (
-    <Router>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || 'dummy-client-id'}>
+      <Router>
       <div className="min-h-screen bg-[#F3F4F6] text-[#111827] font-sans selection:bg-[#F97316] selection:text-white flex flex-col">
-        <Navigation onOpenAuth={() => setIsAuthOpen(true)} />
+        <Navigation onOpenAuth={() => setAuthModalOpen(true)} />
         <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Routes>
             <Route path="/" element={<HomePage />} />
@@ -118,6 +121,7 @@ export default function App() {
             <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/account" element={<AccountPage />} />
+            <Route path="/oauth/authorize" element={<OAuthConsentPage />} />
           </Routes>
         </main>
         
@@ -166,8 +170,9 @@ export default function App() {
         </footer>
 
         <ToastContainer />
-        <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+        <AuthModal isOpen={isAuthModalOpen} onClose={() => setAuthModalOpen(false)} />
       </div>
     </Router>
+    </GoogleOAuthProvider>
   );
 }

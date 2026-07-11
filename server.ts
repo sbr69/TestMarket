@@ -8,10 +8,12 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import swaggerUi from 'swagger-ui-express';
 import fs from 'fs';
+import { OAuth2Client } from 'google-auth-library';
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const swaggerDocument = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'swagger.json'), 'utf8'));
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 async function startServer() {
   const app = express();
@@ -37,6 +39,39 @@ async function startServer() {
   };
 
   // --- Public Auth Endpoints ---
+  app.post('/api/auth/google', async (req, res) => {
+    try {
+      const { credential } = req.body;
+      const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      
+      if (!payload || !payload.email) {
+        return res.status(400).json({ error: 'Invalid Google token' });
+      }
+
+      const { email, name } = payload;
+
+      let user = await prisma.user.findUnique({ where: { email } });
+      if (!user) {
+        // Create user with random password since they authenticate via Google
+        const randomPassword = crypto.randomBytes(16).toString('hex');
+        const passwordHash = await bcrypt.hash(randomPassword, 10);
+        user = await prisma.user.create({
+          data: { name: name || 'Google User', email, passwordHash }
+        });
+      }
+
+      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   app.post('/api/auth/register', async (req, res) => {
     try {
       const { name, email, password } = req.body;
@@ -86,6 +121,88 @@ async function startServer() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
+    }
+  });
+
+  // --- OAuth 2.0 Provider Endpoints ---
+  app.get('/api/oauth/client', async (req, res) => {
+    try {
+      const { client_id } = req.query;
+      const client = await (prisma as any).oAuthClient.findUnique({ where: { clientId: String(client_id) } });
+      if (!client) return res.status(404).json({ error: 'Client not found', code: 'NOT_FOUND', status: 404 });
+      res.json({ name: client.name, redirect_uris: client.redirectUris });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.post('/api/oauth/authorize', authenticateToken, async (req: any, res: any) => {
+    try {
+      const { client_id, redirect_uri } = req.body;
+      const client = await (prisma as any).oAuthClient.findUnique({ where: { clientId: client_id } });
+      if (!client) return res.status(404).json({ error: 'Client not found' });
+      
+      const allowedUris = client.redirectUris.split(',');
+      if (!allowedUris.includes(redirect_uri)) {
+        return res.status(400).json({ error: 'Invalid redirect URI' });
+      }
+
+      const code = crypto.randomBytes(16).toString('hex');
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 mins expiry
+
+      await (prisma as any).oAuthAuthCode.create({
+        data: {
+          code,
+          clientId: client_id,
+          userId: req.user.userId,
+          redirectUri: redirect_uri,
+          expiresAt
+        }
+      });
+
+      res.json({ code });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.post('/api/oauth/token', async (req, res) => {
+    try {
+      const { grant_type, code, client_id, client_secret } = req.body;
+      if (grant_type !== 'authorization_code') {
+        return res.status(400).json({ error: 'Unsupported grant type' });
+      }
+
+      const client = await (prisma as any).oAuthClient.findUnique({ where: { clientId: client_id } });
+      if (!client || client.clientSecret !== client_secret) {
+        return res.status(401).json({ error: 'Invalid client credentials' });
+      }
+
+      const authCode = await (prisma as any).oAuthAuthCode.findUnique({ where: { code } });
+      if (!authCode || authCode.clientId !== client_id || authCode.expiresAt < new Date()) {
+        return res.status(400).json({ error: 'Invalid or expired code' });
+      }
+
+      // Delete code so it can't be reused
+      await (prisma as any).oAuthAuthCode.delete({ where: { id: authCode.id } });
+
+      // Generate Access Token (JWT)
+      const token = jwt.sign(
+        { userId: authCode.userId, clientId: client_id, isOAuth: true }, 
+        JWT_SECRET, 
+        { expiresIn: '30d' }
+      );
+
+      res.json({
+        access_token: token,
+        token_type: 'bearer',
+        expires_in: 30 * 24 * 60 * 60
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 

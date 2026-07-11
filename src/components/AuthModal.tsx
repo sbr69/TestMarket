@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
+import { GoogleLogin } from '@react-oauth/google';
 import { X } from 'lucide-react';
 
 interface AuthModalProps {
@@ -16,6 +17,31 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const { addToast } = useToastStore();
 
   if (!isOpen) return null;
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: credentialResponse.credential })
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        setAuth(data.token, data.user);
+        addToast('Successfully logged in with Google!', 'success');
+        onClose();
+      } else {
+        addToast(data.error || 'Google Authentication failed', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      addToast('Network error occurred', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -87,6 +113,34 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
           </button>
         </form>
+
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500 font-medium">Or continue with</span>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-center">
+            <div className="w-full relative min-h-[44px]">
+              {/* @react-oauth/google's GoogleLogin component provides the exact Google button and handles the credential flow */}
+              <div className="absolute inset-0 flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => addToast('Google Sign-In failed', 'error')}
+                  useOneTap
+                  theme="outline"
+                  size="large"
+                  text="continue_with"
+                  width="100%"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
 
         <p className="text-center text-sm text-gray-500 mt-8">
           {isLogin ? "Don't have an account? " : "Already have an account? "}

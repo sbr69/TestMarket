@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Truck, Shield, RotateCcw, Heart, ShoppingBag, MapPin, Store } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
+import { useWishlistStore } from '../store/wishlistStore';
+import { useAuthStore } from '../store/authStore';
 
 interface ProductSpec {
   id: string;
@@ -69,9 +71,26 @@ export default function ProductDetailPage() {
   const addItem = useCartStore(state => state.addItem);
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState<string>('');
-  const [isWishlisted, setIsWishlisted] = useState(false);
+  const { token } = useAuthStore();
+  const { items: wishlistItems, toggleWishlist, fetchWishlist } = useWishlistStore();
+  const isWishlisted = product ? wishlistItems.some(w => w.productId === product.id) : false;
   const [activeTab, setActiveTab] = useState<'description' | 'specs' | 'reviews'>('description');
   const [reviews, setReviews] = useState<Review[]>([]);
+  
+  const [reviewForm, setReviewForm] = useState({ rating: 5, title: '', body: '' });
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+
+  const fetchReviews = () => {
+    fetch(`/api/products/${id}/reviews`)
+      .then(res => res.json())
+      .then(data => setReviews(data))
+      .catch(err => console.error('Failed to fetch reviews', err));
+  };
+
+  useEffect(() => {
+    if (token) fetchWishlist(token);
+  }, [token, fetchWishlist]);
 
   useEffect(() => {
     setLoading(true);
@@ -95,12 +114,7 @@ export default function ProductDetailPage() {
         }
         
         // Fetch reviews
-        fetch(`/api/products/${id}/reviews`)
-          .then(res => res.json())
-          .then(data => {
-            setReviews(data);
-          })
-          .catch(err => console.error('Failed to fetch reviews', err));
+        fetchReviews();
 
         setLoading(false);
       })
@@ -123,6 +137,34 @@ export default function ProductDetailPage() {
   const handleBuyNow = () => {
     addItem(product.id, quantity);
     navigate('/checkout');
+  };
+
+  const submitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) {
+      alert('Please sign in to submit a review');
+      return;
+    }
+    setIsSubmittingReview(true);
+    try {
+      const res = await fetch(`/api/products/${id}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(reviewForm)
+      });
+      if (res.ok) {
+        setReviewForm({ rating: 5, title: '', body: '' });
+        setShowReviewForm(false);
+        fetchReviews();
+        // Option: refresh product data to update rating?
+      } else {
+        alert('Failed to submit review');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
   return (
@@ -149,7 +191,7 @@ export default function ProductDetailPage() {
               <div className="w-full h-full flex items-center justify-center text-gray-400 font-medium">No Image Available</div>
             )}
             <button 
-              onClick={() => setIsWishlisted(!isWishlisted)}
+              onClick={() => { if (token && product) toggleWishlist(product.id, token); else alert('Please sign in'); }}
               className="absolute top-4 right-4 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
             >
               <Heart className={`w-6 h-6 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
@@ -360,8 +402,45 @@ export default function ProductDetailPage() {
                     )
                   })}
                 </div>
+                
+                {token ? (
+                  <button onClick={() => setShowReviewForm(!showReviewForm)} className="mt-8 w-full py-3 px-4 bg-white border-2 border-gray-200 text-gray-900 font-bold rounded-xl hover:border-gray-300 transition-colors">
+                    {showReviewForm ? 'Cancel Review' : 'Write a Review'}
+                  </button>
+                ) : (
+                  <p className="mt-8 text-sm text-gray-500 font-medium text-center">Please sign in to write a review</p>
+                )}
               </div>
               <div className="md:col-span-2 space-y-6">
+                {showReviewForm && (
+                  <form onSubmit={submitReview} className="bg-gray-50 p-6 rounded-2xl border border-gray-200 mb-8 animate-in slide-in-from-top-2">
+                    <h4 className="font-bold text-gray-900 mb-4">Write your review</h4>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Rating</label>
+                        <select value={reviewForm.rating} onChange={e => setReviewForm({...reviewForm, rating: Number(e.target.value)})} className="w-full h-10 px-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#F97316] outline-none bg-white">
+                          <option value={5}>5 - Excellent</option>
+                          <option value={4}>4 - Good</option>
+                          <option value={3}>3 - Average</option>
+                          <option value={2}>2 - Poor</option>
+                          <option value={1}>1 - Terrible</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Review Title</label>
+                        <input required type="text" value={reviewForm.title} onChange={e => setReviewForm({...reviewForm, title: e.target.value})} className="w-full h-10 px-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#F97316] outline-none" placeholder="Summarize your experience" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Review Details</label>
+                        <textarea required value={reviewForm.body} onChange={e => setReviewForm({...reviewForm, body: e.target.value})} className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#F97316] outline-none resize-none h-24" placeholder="What did you like or dislike?"></textarea>
+                      </div>
+                      <button type="submit" disabled={isSubmittingReview} className="py-3 px-6 bg-[#1B1F5E] text-white font-bold rounded-xl hover:bg-indigo-900 transition-colors disabled:opacity-50">
+                        {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              
                 {reviews.length > 0 ? reviews.map(review => (
                   <div key={review.id} className="border-b border-gray-100 pb-6 last:border-0 last:pb-0">
                     <div className="flex items-center justify-between mb-2">

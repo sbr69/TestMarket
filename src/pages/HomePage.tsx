@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
-import { Monitor, ShoppingBasket, Book, Shirt, Home, Dumbbell, Sparkles, Gamepad2, ChevronRight, ChevronLeft, Clock, Zap } from 'lucide-react';
+import { Monitor, ShoppingBasket, Book, Shirt, Home, Dumbbell, Sparkles, Gamepad2, ChevronRight, ChevronLeft, Clock, Zap, Heart } from 'lucide-react';
+import { useWishlistStore } from '../store/wishlistStore';
+import { useAuthStore } from '../store/authStore';
 
 interface Product {
   id: string;
@@ -67,15 +69,35 @@ const SkeletonCard = () => (
 );
 
 export default function HomePage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const q = searchParams.get('q') || '';
   const category = searchParams.get('category') || '';
+  const sort = searchParams.get('sort') || '';
+  const minPrice = searchParams.get('min_price') || '';
+  const maxPrice = searchParams.get('max_price') || '';
+  const inStock = searchParams.get('in_stock') === 'true';
+  const ratingFilter = searchParams.get('rating') || '';
+
+  const updateParams = (updates: Record<string, string | null>) => {
+    const newParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === '') newParams.delete(key);
+      else newParams.set(key, value);
+    });
+    setSearchParams(newParams);
+  };
   
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const addItem = useCartStore(state => state.addItem);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [timeLeft, setTimeLeft] = useState({ hours: 4, minutes: 12, seconds: 39 });
+  const { token } = useAuthStore();
+  const { items: wishlistItems, toggleWishlist, fetchWishlist } = useWishlistStore();
+
+  useEffect(() => {
+    if (token) fetchWishlist(token);
+  }, [token, fetchWishlist]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -118,9 +140,14 @@ export default function HomePage() {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (category) params.set('category', category);
+    if (sort) params.set('sort', sort);
+    if (minPrice) params.set('min_price', minPrice);
+    if (maxPrice) params.set('max_price', maxPrice);
+    if (inStock) params.set('in_stock', 'true');
+    if (ratingFilter) params.set('rating', ratingFilter);
     
-    // If on homepage without search, load a mix of items
-    const fetchUrl = (q || category) 
+    // If on homepage without search/filter, load a mix of items
+    const fetchUrl = (q || category || sort || minPrice || maxPrice || inStock || ratingFilter) 
       ? `/api/products/search?${params.toString()}`
       : `/api/products/search?limit=12`;
 
@@ -140,7 +167,7 @@ export default function HomePage() {
         console.error('Failed to fetch products', err);
         setLoading(false);
       });
-  }, [q, category]);
+  }, [q, category, sort, minPrice, maxPrice, inStock, ratingFilter]);
 
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % CAROUSEL_SLIDES.length);
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + CAROUSEL_SLIDES.length) % CAROUSEL_SLIDES.length);
@@ -248,6 +275,12 @@ export default function HomePage() {
                         {product.discount_percent}% OFF
                       </div>
                     </Link>
+                    <button 
+                      onClick={(e) => { e.preventDefault(); if (token) toggleWishlist(product.id, token); else alert('Please sign in'); }}
+                      className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors"
+                    >
+                      <Heart className={`w-4 h-4 ${wishlistItems.some(w => w.productId === product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
+                    </button>
                     <div className="p-4">
                       <Link to={`/product/${product.id}`} className="hover:text-red-600 transition-colors">
                         <h3 className="font-medium text-gray-900 line-clamp-1 text-sm">{product.name}</h3>
@@ -290,6 +323,12 @@ export default function HomePage() {
                         </div>
                       )}
                     </Link>
+                    <button 
+                      onClick={(e) => { e.preventDefault(); if (token) toggleWishlist(product.id, token); else alert('Please sign in'); }}
+                      className="absolute top-2 right-2 p-2 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors z-10"
+                    >
+                      <Heart className={`w-5 h-5 ${wishlistItems.some(w => w.productId === product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
+                    </button>
                     
                     <div className="p-4 flex flex-col flex-grow">
                       <Link to={`/product/${product.id}`} className="hover:text-[#F97316] transition-colors">
@@ -365,9 +404,9 @@ export default function HomePage() {
                 <div>
                   <h4 className="text-sm font-bold text-gray-700 mb-3">Price Range</h4>
                   <div className="flex items-center gap-2">
-                    <input type="number" placeholder="Min" className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-[#F97316] outline-none" />
+                    <input type="number" value={minPrice} onChange={e => updateParams({ min_price: e.target.value })} placeholder="Min" className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-[#F97316] outline-none" />
                     <span className="text-gray-500">-</span>
-                    <input type="number" placeholder="Max" className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-[#F97316] outline-none" />
+                    <input type="number" value={maxPrice} onChange={e => updateParams({ max_price: e.target.value })} placeholder="Max" className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-[#F97316] outline-none" />
                   </div>
                 </div>
 
@@ -377,13 +416,14 @@ export default function HomePage() {
                   <div className="space-y-2">
                     {[4, 3, 2].map(rating => (
                       <label key={rating} className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" className="rounded text-[#F97316] focus:ring-[#F97316] w-4 h-4 border-gray-300" />
+                        <input type="radio" name="rating" checked={ratingFilter === String(rating)} onChange={() => updateParams({ rating: String(rating) })} className="text-[#F97316] focus:ring-[#F97316] w-4 h-4 border-gray-300" />
                         <div className="flex items-center text-yellow-400 text-sm">
                           {'★'.repeat(rating)}{'☆'.repeat(5-rating)}
                           <span className="text-gray-600 ml-1">& Up</span>
                         </div>
                       </label>
                     ))}
+                    <button onClick={() => updateParams({ rating: null })} className="text-xs text-gray-500 hover:underline mt-2">Clear rating</button>
                   </div>
                 </div>
 
@@ -391,7 +431,7 @@ export default function HomePage() {
                 <div>
                   <h4 className="text-sm font-bold text-gray-700 mb-3">Availability</h4>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" className="rounded text-[#F97316] focus:ring-[#F97316] w-4 h-4 border-gray-300" />
+                    <input type="checkbox" checked={inStock} onChange={e => updateParams({ in_stock: e.target.checked ? 'true' : null })} className="rounded text-[#F97316] focus:ring-[#F97316] w-4 h-4 border-gray-300" />
                     <span className="text-sm text-gray-700">In Stock Only</span>
                   </label>
                 </div>
@@ -410,12 +450,11 @@ export default function HomePage() {
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-gray-700">Sort by:</label>
-                <select className="h-10 px-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-[#F97316] outline-none bg-white">
-                  <option>Relevance</option>
-                  <option>Price: Low to High</option>
-                  <option>Price: High to Low</option>
-                  <option>Newest Arrivals</option>
-                  <option>Customer Rating</option>
+                <select value={sort} onChange={e => updateParams({ sort: e.target.value })} className="h-10 px-3 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-[#F97316] outline-none bg-white">
+                  <option value="">Relevance</option>
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                  <option value="rating">Customer Rating</option>
                 </select>
               </div>
             </header>
@@ -447,6 +486,12 @@ export default function HomePage() {
                         </div>
                       )}
                     </Link>
+                    <button 
+                      onClick={(e) => { e.preventDefault(); if (token) toggleWishlist(product.id, token); else alert('Please sign in'); }}
+                      className="absolute top-2 right-2 p-2 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors z-10"
+                    >
+                      <Heart className={`w-5 h-5 ${wishlistItems.some(w => w.productId === product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
+                    </button>
                     
                     <div className="p-4 flex flex-col flex-grow">
                       <Link to={`/product/${product.id}`} className="hover:text-[#F97316] transition-colors">

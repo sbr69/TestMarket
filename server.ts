@@ -27,10 +27,10 @@ async function startServer() {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) return res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+    if (!token) return res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED', status: 401 });
 
     jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-      if (err) return res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+      if (err) return res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN', status: 403 });
       req.user = user;
       next();
     });
@@ -42,7 +42,7 @@ async function startServer() {
       const { name, email, password } = req.body;
       const existingUser = await prisma.user.findUnique({ where: { email } });
       if (existingUser) {
-        return res.status(400).json({ error: 'User already exists', code: 'USER_EXISTS' });
+        return res.status(400).json({ error: 'User already exists', code: 'USER_EXISTS', status: 400 });
       }
       
       const passwordHash = await bcrypt.hash(password, 10);
@@ -54,7 +54,7 @@ async function startServer() {
       res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 
@@ -62,16 +62,16 @@ async function startServer() {
     try {
       const { email, password } = req.body;
       const user = await prisma.user.findUnique({ where: { email } });
-      if (!user) return res.status(400).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
+      if (!user) return res.status(400).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS', status: 400 });
       
       const valid = await bcrypt.compare(password, user.passwordHash);
-      if (!valid) return res.status(400).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
+      if (!valid) return res.status(400).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS', status: 400 });
       
       const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
       res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 
@@ -81,11 +81,11 @@ async function startServer() {
         where: { id: req.user.userId },
         select: { id: true, name: true, email: true, phone: true }
       });
-      if (!user) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
+      if (!user) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND', status: 404 });
       res.json(user);
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 
@@ -96,7 +96,7 @@ async function startServer() {
       res.json(categories);
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 
@@ -121,6 +121,10 @@ async function startServer() {
       if (in_stock === 'true') {
         whereClause.stock = { gt: 0 };
       }
+      const rating = req.query.rating;
+      if (rating) {
+        whereClause.rating = { gte: parseFloat(String(rating)) };
+      }
       
       let orderByClause: any = { createdAt: 'desc' };
       if (sort === 'price_asc') orderByClause = { price: 'asc' };
@@ -136,7 +140,7 @@ async function startServer() {
           orderBy: orderByClause,
           skip,
           take: Number(limit),
-          include: { images: { orderBy: { sortOrder: 'asc' }, take: 1 } }
+          include: { images: { orderBy: { sortOrder: 'asc' }, take: 1 }, category: true }
         })
       ]);
       
@@ -150,7 +154,7 @@ async function startServer() {
         rating: p.rating,
         review_count: p.reviewCount,
         stock: p.stock,
-        category: p.categoryId, // Ideally we want slug, but this is fine
+        category: p.category.slug, // Ideally we want slug, but this is fine
         image_url: p.images[0]?.url || null
       }));
       
@@ -160,7 +164,7 @@ async function startServer() {
       });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 
@@ -175,16 +179,17 @@ async function startServer() {
         }
       });
       
-      if (!product) return res.status(404).json({ error: 'Product not found', code: 'NOT_FOUND' });
+      if (!product) return res.status(404).json({ error: 'Product not found', code: 'NOT_FOUND', status: 404 });
       
       res.json({
         ...product,
         discount_percent: Math.round(((product.mrp - product.price) / product.mrp) * 100),
+        seller_name: (product as any).sellerName,
         estimated_delivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
       });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 
@@ -207,7 +212,57 @@ async function startServer() {
       })));
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
+    }
+  });
+
+  app.post('/api/products/:id/reviews', authenticateToken, async (req: any, res: any) => {
+    try {
+      const { rating, title, body } = req.body;
+      if (!rating || !title || !body) {
+        return res.status(400).json({ error: 'Missing review fields', code: 'BAD_REQUEST', status: 400 });
+      }
+
+      // Check if user has purchased the product
+      const hasPurchased = await prisma.orderItem.findFirst({
+        where: {
+          productId: req.params.id,
+          order: { userId: req.user.userId, status: 'Delivered' }
+        }
+      });
+
+      const review = await prisma.review.create({
+        data: {
+          productId: req.params.id,
+          userId: req.user.userId,
+          rating: Number(rating),
+          title: String(title),
+          body: String(body),
+          verifiedPurchase: !!hasPurchased
+        },
+        include: { user: { select: { name: true } } }
+      });
+
+      // Update product rating and reviewCount
+      const allReviews = await prisma.review.findMany({ where: { productId: req.params.id } });
+      const newRating = allReviews.reduce((acc, r) => acc + r.rating, 0) / allReviews.length;
+      await prisma.product.update({
+        where: { id: req.params.id },
+        data: { rating: newRating, reviewCount: allReviews.length }
+      });
+
+      res.json({
+        id: review.id,
+        reviewer: review.user.name,
+        rating: review.rating,
+        title: review.title,
+        body: review.body,
+        verified: review.verifiedPurchase,
+        date: review.createdAt
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 
@@ -238,7 +293,7 @@ async function startServer() {
       res.json(cart);
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 
@@ -268,7 +323,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 
@@ -284,7 +339,7 @@ async function startServer() {
       });
 
       if (!cartItem) {
-        return res.status(404).json({ error: 'Cart item not found', code: 'NOT_FOUND' });
+        return res.status(404).json({ error: 'Cart item not found', code: 'NOT_FOUND', status: 404 });
       }
 
       await prisma.cartItem.update({
@@ -294,7 +349,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 
@@ -309,7 +364,7 @@ async function startServer() {
       });
 
       if (!cartItem) {
-        return res.status(404).json({ error: 'Cart item not found', code: 'NOT_FOUND' });
+        return res.status(404).json({ error: 'Cart item not found', code: 'NOT_FOUND', status: 404 });
       }
 
       await prisma.cartItem.delete({
@@ -318,22 +373,78 @@ async function startServer() {
       res.json({ success: true });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
+  });
+
+  
+  // --- Authenticated Wishlist Endpoints ---
+  app.get('/api/wishlist', authenticateToken, async (req: any, res: any) => {
+    try {
+      const wishlist = await prisma.wishlist.findMany({
+        where: { userId: req.user.userId },
+        include: { product: { include: { images: { take: 1, orderBy: { sortOrder: 'asc' } } } } }
+      });
+      res.json(wishlist);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
+    }
+  });
+
+  app.post('/api/wishlist/:product_id', authenticateToken, async (req: any, res: any) => {
+    try {
+      const existing = await prisma.wishlist.findUnique({
+        where: { userId_productId: { userId: req.user.userId, productId: req.params.product_id } }
+      });
+      if (!existing) {
+        await prisma.wishlist.create({
+          data: { userId: req.user.userId, productId: req.params.product_id }
+        });
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
+    }
+  });
+
+  app.delete('/api/wishlist/:product_id', authenticateToken, async (req: any, res: any) => {
+    try {
+      await prisma.wishlist.delete({
+        where: { userId_productId: { userId: req.user.userId, productId: req.params.product_id } }
+      });
+      res.json({ success: true });
+    } catch (err) {
+      // It might not exist, which is fine for delete, but let's catch Prisma errors just in case
+      res.json({ success: true });
+    }
+  });
+
+  // --- Authenticated Logout Endpoint ---
+  app.post('/api/auth/logout', authenticateToken, (req: any, res: any) => {
+    // With stateless JWTs, logout is just client-side token deletion. 
+    res.json({ success: true });
   });
 
   // --- Authenticated Checkout & Orders Endpoints ---
   app.post('/api/checkout', authenticateToken, async (req: any, res: any) => {
     try {
       const userId = req.user.userId;
-      const { address, payment_method, items } = req.body;
+      const { address, payment_method } = req.body;
+      
+      const cartForCheckout = await prisma.cart.findFirst({
+        where: { userId, status: 'ACTIVE' },
+        include: { items: { include: { product: true } } }
+      });
+      const items = cartForCheckout?.items || [];
       
       if (!items || items.length === 0) {
-        return res.status(400).json({ error: 'Cart is empty', code: 'EMPTY_CART' });
+        return res.status(400).json({ error: 'Cart is empty', code: 'EMPTY_CART', status: 400 });
       }
       
       // Calculate total from db products
-      const productIds = items.map((i: any) => i.id);
+      const productIds = items.map((i: any) => i.productId);
       const products = await prisma.product.findMany({
         where: { id: { in: productIds } }
       });
@@ -342,7 +453,7 @@ async function startServer() {
       let subtotal = 0;
       const orderItems = [];
       for (const item of items) {
-        const p = productMap[item.id];
+        const p = productMap[item.productId];
         if (p) {
           subtotal += p.price * item.quantity;
           orderItems.push({
@@ -395,7 +506,7 @@ async function startServer() {
       res.json({ success: true, order_id: order.id });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 
@@ -413,7 +524,7 @@ async function startServer() {
       res.json(orders);
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 
@@ -429,12 +540,12 @@ async function startServer() {
         }
       });
       if (!order || order.userId !== req.user.userId) {
-        return res.status(404).json({ error: 'Order not found', code: 'NOT_FOUND' });
+        return res.status(404).json({ error: 'Order not found', code: 'NOT_FOUND', status: 404 });
       }
       res.json(order);
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
     }
   });
 

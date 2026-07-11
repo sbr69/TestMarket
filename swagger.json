@@ -31,17 +31,29 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string" },
-                  "email": { "type": "string" },
-                  "password": { "type": "string" }
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
                 },
-                "required": ["name", "email", "password"]
+                "required": [
+                  "name",
+                  "email",
+                  "password"
+                ]
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Successful response with JWT token" }
+          "200": {
+            "description": "Successful response with JWT token"
+          }
         }
       }
     },
@@ -55,16 +67,25 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "email": { "type": "string" },
-                  "password": { "type": "string" }
+                  "email": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
                 },
-                "required": ["email", "password"]
+                "required": [
+                  "email",
+                  "password"
+                ]
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Successful response with JWT token" }
+          "200": {
+            "description": "Successful response with JWT token"
+          }
         }
       }
     },
@@ -72,17 +93,74 @@
       "get": {
         "summary": "Search products",
         "parameters": [
-          { "name": "q", "in": "query", "schema": { "type": "string" } },
-          { "name": "category", "in": "query", "schema": { "type": "string" } },
-          { "name": "min_price", "in": "query", "schema": { "type": "number" } },
-          { "name": "max_price", "in": "query", "schema": { "type": "number" } },
-          { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["price_asc", "price_desc", "rating"] } },
-          { "name": "in_stock", "in": "query", "schema": { "type": "boolean" } },
-          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } }
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "min_price",
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "max_price",
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "price_asc",
+                "price_desc",
+                "rating"
+              ]
+            }
+          },
+          {
+            "name": "in_stock",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Successful response" }
+          "200": {
+            "description": "Successful response"
+          }
         }
       }
     },
@@ -90,10 +168,19 @@
       "get": {
         "summary": "Get product by ID",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Successful response" }
+          "200": {
+            "description": "Successful response"
+          }
         }
       }
     },
@@ -101,10 +188,19 @@
       "get": {
         "summary": "Get product reviews",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Successful response" }
+          "200": {
+            "description": "Successful response"
+          }
         }
       }
     },
@@ -112,23 +208,35 @@
       "get": {
         "summary": "Get all categories",
         "responses": {
-          "200": { "description": "Successful response" }
+          "200": {
+            "description": "Successful response"
+          }
         }
       }
     },
     "/cart": {
       "get": {
         "summary": "Get current user's cart",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
-          "200": { "description": "Successful response" }
+          "200": {
+            "description": "Successful response"
+          }
         }
       }
     },
     "/cart/add": {
       "post": {
         "summary": "Add item to cart",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -136,25 +244,46 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "product_id": { "type": "string" },
-                  "quantity": { "type": "integer", "minimum": 1 }
+                  "product_id": {
+                    "type": "string"
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
                 },
-                "required": ["product_id", "quantity"]
+                "required": [
+                  "product_id",
+                  "quantity"
+                ]
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Successful response" }
+          "200": {
+            "description": "Successful response"
+          }
         }
       }
     },
     "/cart/{item_id}": {
       "put": {
         "summary": "Update cart item quantity",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "name": "item_id", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
@@ -163,32 +292,56 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "quantity": { "type": "integer", "minimum": 1 }
+                  "quantity": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
                 },
-                "required": ["quantity"]
+                "required": [
+                  "quantity"
+                ]
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Successful response" }
+          "200": {
+            "description": "Successful response"
+          }
         }
       },
       "delete": {
         "summary": "Remove item from cart",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "name": "item_id", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Successful response" }
+          "200": {
+            "description": "Successful response"
+          }
         }
       }
     },
     "/checkout": {
       "post": {
         "summary": "Checkout current cart",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -196,37 +349,143 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "address": { "type": "string" },
-                  "payment_method": { "type": "string", "default": "Card" }
+                  "address": {
+                    "type": "string"
+                  },
+                  "payment_method": {
+                    "type": "string",
+                    "default": "Card"
+                  }
                 },
-                "required": ["address"]
+                "required": [
+                  "address"
+                ]
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Successful response" }
+          "200": {
+            "description": "Successful response"
+          }
         }
       }
     },
     "/orders": {
       "get": {
         "summary": "Get current user's orders",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
-          "200": { "description": "Successful response" }
+          "200": {
+            "description": "Successful response"
+          }
         }
       }
     },
     "/orders/{id}": {
       "get": {
         "summary": "Get order by ID",
-        "security": [{ "bearerAuth": [] }],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Successful response" }
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Logout user",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logged out successfully"
+          }
+        }
+      }
+    },
+    "/wishlist": {
+      "get": {
+        "summary": "Get user wishlist",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of wishlisted products"
+          }
+        }
+      }
+    },
+    "/wishlist/{product_id}": {
+      "post": {
+        "summary": "Add product to wishlist",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product added to wishlist"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove product from wishlist",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product removed from wishlist"
+          }
         }
       }
     }

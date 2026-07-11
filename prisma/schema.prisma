@@ -61,6 +61,7 @@ model Product {
   rating          Float          @default(0.0)
   reviewCount     Int            @default(0)
   isActive        Boolean        @default(true)
+  sellerName      String         @default("TestMarket Retail")
   createdAt       DateTime       @default(now())
   
   images          ProductImage[]

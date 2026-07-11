@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useWishlistStore } from '../store/wishlistStore';
 import { Package, Heart, User as UserIcon, MapPin, CheckCircle, Clock, Truck, Settings, Lock, Bot } from 'lucide-react';
 
 interface OrderItem {
@@ -21,19 +22,25 @@ interface Order {
 export default function AccountPage() {
   const { user, token, logout } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'orders' | 'wishlist' | 'profile' | 'addresses' | 'agent'>('orders');
+  const { items: wishlistItems, fetchWishlist, toggleWishlist } = useWishlistStore();
   
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
 
   useEffect(() => {
-    if (token && activeTab === 'orders') {
-      setLoadingOrders(true);
-      fetch('/api/orders', { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(res => res.json())
-        .then(data => { setOrders(data); setLoadingOrders(false); })
-        .catch(() => setLoadingOrders(false));
+    if (token) {
+      if (activeTab === 'orders') {
+        setLoadingOrders(true);
+        fetch('/api/orders', { headers: { 'Authorization': `Bearer ${token}` } })
+          .then(res => res.json())
+          .then(data => { setOrders(data); setLoadingOrders(false); })
+          .catch(() => setLoadingOrders(false));
+      }
+      if (activeTab === 'wishlist') {
+        fetchWishlist(token);
+      }
     }
-  }, [token, activeTab]);
+  }, [token, activeTab, fetchWishlist]);
 
   if (!token || !user) {
     return (
@@ -135,11 +142,48 @@ export default function AccountPage() {
         return (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 font-sans mb-6">My Wishlist</h2>
-            <div className="text-center py-12 bg-gray-50 rounded-2xl border border-gray-200">
-              <Heart className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="font-bold text-gray-900 mb-2">Your wishlist is empty</h3>
-              <p className="text-gray-500">Save items you love to view them later.</p>
-            </div>
+            {wishlistItems.length === 0 ? (
+              <div className="text-center py-12 bg-gray-50 rounded-2xl border border-gray-200">
+                <Heart className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="font-bold text-gray-900 mb-2">Your wishlist is empty</h3>
+                <p className="text-gray-500">Save items you love to view them later.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {wishlistItems.map(item => {
+                  const product = item.product;
+                  if (!product) return null;
+                  return (
+                    <div key={item.productId} className="group relative flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-all">
+                      <Link to={`/product/${product.id}`} className="aspect-square bg-gray-50 p-4 block relative">
+                        {product.images?.[0]?.url ? (
+                          <img src={product.images[0].url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" />
+                        ) : (
+                          <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 font-medium">No Image</div>
+                        )}
+                      </Link>
+                      <button 
+                        onClick={(e) => { e.preventDefault(); if (token) toggleWishlist(product.id, token); }}
+                        className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors"
+                      >
+                        <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                      </button>
+                      <div className="p-4 flex flex-col flex-grow">
+                        <Link to={`/product/${product.id}`} className="hover:text-red-600 transition-colors">
+                          <h3 className="font-medium text-gray-900 line-clamp-1 text-sm">{product.name}</h3>
+                        </Link>
+                        <div className="flex items-baseline gap-2 mt-auto pt-2">
+                          <span className="text-lg font-bold text-gray-900 font-mono">${product.price.toFixed(2)}</span>
+                          {product.mrp > product.price && (
+                            <span className="text-xs text-gray-400 line-through font-mono">${product.mrp.toFixed(2)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       case 'profile':

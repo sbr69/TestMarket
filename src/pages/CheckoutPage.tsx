@@ -92,8 +92,7 @@ export default function CheckoutPage() {
           },
           body: JSON.stringify({
             address: fullAddress,
-            payment_method: paymentMethod,
-            items: items.map(i => ({ id: i.id, quantity: i.quantity }))
+            payment_method: paymentMethod
           })
         });
         if (checkoutRes.ok) {

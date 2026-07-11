@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  phone        String?
+  createdAt    DateTime  @default(now())
+  
+  addresses    Address[]
+  carts        Cart[]
+  orders       Order[]
+  reviews      Review[]
+  wishlist     Wishlist[]
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  fullName   String
+  phone      String
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  pincode    String
+  isDefault  Boolean  @default(false)
+  
+  orders     Order[]
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String
+  slug     String    @unique
+  iconUrl  String?
+  
+  products Product[]
+}
+
+model Product {
+  id              String         @id @default(uuid())
+  categoryId      String
+  category        Category       @relation(fields: [categoryId], references: [id])
+  name            String
+  brand           String
+  slug            String         @unique
+  description     String
+  mrp             Float
+  price           Float
+  stock           Int            @default(0)
+  rating          Float          @default(0.0)
+  reviewCount     Int            @default(0)
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  
+  images          ProductImage[]
+  specs           ProductSpec[]
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+  reviews         Review[]
+  wishlistedBy    Wishlist[]
+}
+
+model ProductImage {
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  url       String
+  sortOrder Int     @default(0)
+}
+
+model ProductSpec {
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  key       String
+  value     String
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String?
+  user      User?      @relation(fields: [userId], references: [id])
+  status    String     @default("ACTIVE") // ACTIVE, ORDERED
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  
+  items     CartItem[]
+  orders    Order[]
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, productId])
+}
+
+model Order {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  cartId        String
+  cart          Cart        @relation(fields: [cartId], references: [id])
+  addressId     String
+  address       Address     @relation(fields: [addressId], references: [id])
+  total         Float
+  status        String      @default("Processing") // Processing, Shipped, Delivered, Cancelled
+  paymentMethod String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  items         OrderItem[]
+}
+
+model OrderItem {
+  id              String   @id @default(uuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id])
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  quantity        Int
+  priceAtPurchase Float
+  createdAt       DateTime @default(now())
+}
+
+model Review {
+  id               String   @id @default(uuid())
+  productId        String
+  product          Product  @relation(fields: [productId], references: [id])
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  rating           Int
+  title            String
+  body             String
+  verifiedPurchase Boolean  @default(false)
+  createdAt        DateTime @default(now())
+}
+
+model Wishlist {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}

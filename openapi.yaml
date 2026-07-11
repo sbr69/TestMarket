@@ -1,0 +1,291 @@
+openapi: 3.0.0
+info:
+  title: MarketSim API
+  description: E-commerce marketplace API for an autonomous AI shopping agent.
+  version: 1.0.0
+servers:
+  - url: /api
+paths:
+  /products/search:
+    get:
+      summary: Search products
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search query
+        - in: query
+          name: category
+          schema:
+            type: string
+          description: Filter by category
+        - in: query
+          name: max_price
+          schema:
+            type: number
+          description: Maximum price
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [price_asc, price_desc, rating]
+          description: Sort order
+      responses:
+        '200':
+          description: A list of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductShort'
+        '500':
+          description: Internal server error
+  /products/{id}:
+    get:
+      summary: Get product details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDetail'
+        '404':
+          description: Product not found
+        '500':
+          description: Internal server error
+  /cart:
+    post:
+      summary: Create a new cart
+      responses:
+        '201':
+          description: Created cart
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+  /cart/{cartId}:
+    get:
+      summary: Get cart details
+      parameters:
+        - in: path
+          name: cartId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cart details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '404':
+          description: Cart not found
+  /cart/{cartId}/items:
+    post:
+      summary: Add item to cart
+      parameters:
+        - in: path
+          name: cartId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                product_id:
+                  type: string
+                quantity:
+                  type: integer
+              required:
+                - product_id
+                - quantity
+      responses:
+        '201':
+          description: Added item
+        '400':
+          description: Bad request
+        '404':
+          description: Product not found
+  /cart/{cartId}/items/{itemId}:
+    delete:
+      summary: Remove item from cart
+      parameters:
+        - in: path
+          name: cartId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully removed
+  /checkout:
+    post:
+      summary: Checkout cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cart_id:
+                  type: string
+                delivery_address:
+                  type: string
+                payment_method:
+                  type: string
+              required:
+                - cart_id
+                - delivery_address
+                - payment_method
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    type: string
+                  total:
+                    type: number
+                  status:
+                    type: string
+                  estimated_delivery:
+                    type: string
+                    format: date-time
+        '400':
+          description: Invalid request or cart
+  /orders/{orderId}:
+    get:
+      summary: Get order status
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Order not found
+components:
+  schemas:
+    ProductShort:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        currency:
+          type: string
+        stock:
+          type: integer
+        rating:
+          type: number
+        category:
+          type: string
+        sellerId:
+          type: string
+        imageUrl:
+          type: string
+    ProductDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProductShort'
+        - type: object
+          properties:
+            description:
+              type: string
+            seller:
+              type: object
+              properties:
+                businessName:
+                  type: string
+                rating:
+                  type: number
+                createdAt:
+                  type: string
+                  format: date-time
+            deliveryEstimate:
+              type: string
+              format: date-time
+    Cart:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              productId:
+                type: string
+              quantity:
+                type: integer
+              product:
+                $ref: '#/components/schemas/ProductShort'
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        cartId:
+          type: string
+        total:
+          type: number
+        status:
+          type: string
+        deliveryAddress:
+          type: string
+        paymentMethod:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              productId:
+                type: string
+              quantity:
+                type: integer
+              priceAtPurchase:
+                type: number
+              product:
+                $ref: '#/components/schemas/ProductShort'

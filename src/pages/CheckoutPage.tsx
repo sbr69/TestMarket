@@ -290,7 +290,7 @@ export default function CheckoutPage() {
                 <div className="pt-6 border-t border-gray-100 flex justify-end">
                   <button type="submit" disabled={submitting} className="py-4 px-8 bg-[#F97316] text-white font-bold rounded-xl hover:bg-orange-600 active:scale-[0.98] transition-all flex items-center gap-2 shadow-md disabled:opacity-50">
                     <ShieldCheck className="w-5 h-5" />
-                    {submitting ? 'Processing...' : `Pay $${finalTotal.toFixed(2)}`}
+                    {submitting ? 'Processing...' : `Pay XLM ${finalTotal.toFixed(2)}`}
                   </button>
                 </div>
               </form>
@@ -318,7 +318,7 @@ export default function CheckoutPage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-gray-900 truncate">{product.name}</p>
                       <p className="text-xs text-gray-500 mt-1">Qty: {item.quantity}</p>
-                      <p className="text-sm font-bold text-gray-900 font-mono mt-1">${(product.price * item.quantity).toFixed(2)}</p>
+                      <p className="text-sm font-bold text-gray-900 font-mono mt-1">XLM {(product.price * item.quantity).toFixed(2)}</p>
                     </div>
                   </div>
                 )
@@ -328,15 +328,15 @@ export default function CheckoutPage() {
             <div className="space-y-3 text-sm font-medium border-t border-gray-100 pt-4">
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal</span>
-                <span className="font-mono">${total.toFixed(2)}</span>
+                <span className="font-mono">XLM {total.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>Delivery</span>
-                <span className="font-mono">{shippingFee === 0 ? <span className="text-green-600">Free</span> : `$${shippingFee.toFixed(2)}`}</span>
+                <span className="font-mono">{shippingFee === 0 ? <span className="text-green-600">Free</span> : `XLM ${shippingFee.toFixed(2)}`}</span>
               </div>
               <div className="pt-3 border-t border-gray-100 flex justify-between font-bold text-gray-900 text-lg font-sans">
                 <span>Total</span>
-                <span className="font-mono">${finalTotal.toFixed(2)}</span>
+                <span className="font-mono">XLM {finalTotal.toFixed(2)}</span>
               </div>
             </div>
           </div>

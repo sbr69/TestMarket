@@ -241,12 +241,12 @@ export default function ProductDetailPage() {
           <div className="flex flex-col mb-8 p-6 bg-gray-50 rounded-2xl border border-gray-200">
             <div className="flex items-end gap-3 mb-2">
               <span className="text-4xl font-bold text-gray-900 font-mono tracking-tighter">
-                ${product.price.toFixed(2)}
+                XLM {product.price.toFixed(2)}
               </span>
               {product.mrp > product.price && (
                 <>
                   <span className="text-lg text-gray-400 line-through font-mono mb-1">
-                    ${product.mrp.toFixed(2)}
+                    XLM {product.mrp.toFixed(2)}
                   </span>
                   <span className="text-sm font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded mb-1.5">
                     {product.discount_percent || Math.round((1 - product.price/product.mrp) * 100)}% OFF
@@ -493,9 +493,9 @@ export default function ProductDetailPage() {
                     <h3 className="font-medium text-gray-900 line-clamp-2 text-sm leading-tight">{product.name}</h3>
                   </Link>
                   <div className="flex items-baseline gap-2 mt-3">
-                    <span className="text-lg font-bold text-gray-900 font-mono">${product.price.toFixed(2)}</span>
+                    <span className="text-lg font-bold text-gray-900 font-mono">XLM {product.price.toFixed(2)}</span>
                     {product.mrp > product.price && (
-                      <span className="text-xs text-gray-400 line-through font-mono">${product.mrp.toFixed(2)}</span>
+                      <span className="text-xs text-gray-400 line-through font-mono">XLM {product.mrp.toFixed(2)}</span>
                     )}
                   </div>
                 </div>

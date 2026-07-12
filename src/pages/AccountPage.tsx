@@ -86,7 +86,7 @@ export default function AccountPage() {
                         </div>
                         <div>
                           <p className="text-gray-500 font-bold uppercase tracking-wider text-xs">Total</p>
-                          <p className="font-bold text-gray-900 font-mono">${order.total.toFixed(2)}</p>
+                          <p className="font-bold text-gray-900 font-mono">XLM {order.total.toFixed(2)}</p>
                         </div>
                       </div>
                       <div className="text-right">
@@ -120,7 +120,7 @@ export default function AccountPage() {
                               </Link>
                               <div className="flex items-center gap-4 text-sm text-gray-500">
                                 <span>Qty: <span className="font-bold text-gray-900">{item.quantity}</span></span>
-                                <span className="font-bold text-gray-900 font-mono">${item.priceAtPurchase.toFixed(2)}</span>
+                                <span className="font-bold text-gray-900 font-mono">XLM {item.priceAtPurchase.toFixed(2)}</span>
                               </div>
                             </div>
                             <div className="hidden sm:block">
@@ -173,9 +173,9 @@ export default function AccountPage() {
                           <h3 className="font-medium text-gray-900 line-clamp-1 text-sm">{product.name}</h3>
                         </Link>
                         <div className="flex items-baseline gap-2 mt-auto pt-2">
-                          <span className="text-lg font-bold text-gray-900 font-mono">${product.price.toFixed(2)}</span>
+                          <span className="text-lg font-bold text-gray-900 font-mono">XLM {product.price.toFixed(2)}</span>
                           {product.mrp > product.price && (
-                            <span className="text-xs text-gray-400 line-through font-mono">${product.mrp.toFixed(2)}</span>
+                            <span className="text-xs text-gray-400 line-through font-mono">XLM {product.mrp.toFixed(2)}</span>
                           )}
                         </div>
                       </div>

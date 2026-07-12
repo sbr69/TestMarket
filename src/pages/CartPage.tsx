@@ -141,9 +141,9 @@ export default function CartPage() {
                           <h3 className="font-bold text-gray-900 text-lg leading-snug font-sans">{product.name}</h3>
                         </Link>
                         <div className="text-right">
-                          <p className="text-gray-900 font-bold font-mono tracking-tight text-lg">${product.price.toFixed(2)}</p>
+                          <p className="text-gray-900 font-bold font-mono tracking-tight text-lg">XLM {product.price.toFixed(2)}</p>
                           {product.mrp > product.price && (
-                            <p className="text-gray-400 line-through font-mono text-sm">${product.mrp.toFixed(2)}</p>
+                            <p className="text-gray-400 line-through font-mono text-sm">XLM {product.mrp.toFixed(2)}</p>
                           )}
                         </div>
                       </div>
@@ -192,27 +192,27 @@ export default function CartPage() {
             <div className="space-y-4 text-sm font-medium">
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal</span>
-                <span className="font-mono">${mrpTotal.toFixed(2)}</span>
+                <span className="font-mono">XLM {mrpTotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-green-600">
                 <span>Discount</span>
-                <span className="font-mono">-${totalDiscount.toFixed(2)}</span>
+                <span className="font-mono">-XLM {totalDiscount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>Delivery Charges</span>
-                <span className="font-mono">{shippingFee === 0 ? <span className="text-green-600">Free</span> : `$${shippingFee.toFixed(2)}`}</span>
+                <span className="font-mono">{shippingFee === 0 ? <span className="text-green-600">Free</span> : `XLM ${shippingFee.toFixed(2)}`}</span>
               </div>
               {shippingFee > 0 && (
                 <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded border border-gray-100">
-                  Add <span className="font-bold text-gray-900 font-mono">${(500 - total).toFixed(2)}</span> more to your cart for FREE delivery!
+                  Add <span className="font-bold text-gray-900 font-mono">XLM {(500 - total).toFixed(2)}</span> more to your cart for FREE delivery!
                 </div>
               )}
               <div className="pt-4 border-t border-gray-200 flex justify-between font-bold text-gray-900 text-xl font-sans">
                 <span>Total Amount</span>
-                <span className="font-mono">${finalTotal.toFixed(2)}</span>
+                <span className="font-mono">XLM {finalTotal.toFixed(2)}</span>
               </div>
               <p className="text-green-600 text-xs font-bold pt-1 bg-green-50 p-2 rounded border border-green-100">
-                You will save ${totalDiscount.toFixed(2)} on this order
+                You will save XLM {totalDiscount.toFixed(2)} on this order
               </p>
             </div>
             
@@ -250,7 +250,7 @@ export default function CartPage() {
                   <h3 className="font-medium text-gray-900 mb-1 line-clamp-2 text-sm">{product.name}</h3>
                 </Link>
                 <div className="flex items-baseline gap-2 mt-auto pt-2">
-                  <span className="text-lg font-bold text-gray-900 font-mono">${product.price.toFixed(2)}</span>
+                  <span className="text-lg font-bold text-gray-900 font-mono">XLM {product.price.toFixed(2)}</span>
                 </div>
               </div>
             </div>

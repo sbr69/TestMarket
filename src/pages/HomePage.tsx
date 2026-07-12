@@ -286,8 +286,8 @@ export default function HomePage() {
                         <h3 className="font-medium text-gray-900 line-clamp-1 text-sm">{product.name}</h3>
                       </Link>
                       <div className="flex items-baseline gap-2 mt-2">
-                        <span className="text-lg font-bold text-gray-900 font-mono">${product.price.toFixed(2)}</span>
-                        <span className="text-xs text-gray-400 line-through font-mono">${product.mrp.toFixed(2)}</span>
+                        <span className="text-lg font-bold text-gray-900 font-mono">XLM {product.price.toFixed(2)}</span>
+                        <span className="text-xs text-gray-400 line-through font-mono">XLM {product.mrp.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -344,9 +344,9 @@ export default function HomePage() {
                         <span className="text-xs text-gray-500 font-medium">({product.review_count.toLocaleString()})</span>
                       </div>
                       <div className="flex items-baseline gap-2 mt-auto pt-2">
-                        <span className="text-lg font-bold text-gray-900 font-mono tracking-tight">${product.price.toFixed(2)}</span>
+                        <span className="text-lg font-bold text-gray-900 font-mono tracking-tight">XLM {product.price.toFixed(2)}</span>
                         {product.mrp > product.price && (
-                          <span className="text-xs text-gray-400 line-through font-mono">${product.mrp.toFixed(2)}</span>
+                          <span className="text-xs text-gray-400 line-through font-mono">XLM {product.mrp.toFixed(2)}</span>
                         )}
                       </div>
                       
@@ -507,9 +507,9 @@ export default function HomePage() {
                         <span className="text-xs text-gray-500 font-medium">({product.review_count.toLocaleString()})</span>
                       </div>
                       <div className="flex items-baseline gap-2 mt-auto pt-2">
-                        <span className="text-lg font-bold text-gray-900 font-mono tracking-tight">${product.price.toFixed(2)}</span>
+                        <span className="text-lg font-bold text-gray-900 font-mono tracking-tight">XLM {product.price.toFixed(2)}</span>
                         {product.mrp > product.price && (
-                          <span className="text-xs text-gray-400 line-through font-mono">${product.mrp.toFixed(2)}</span>
+                          <span className="text-xs text-gray-400 line-through font-mono">XLM {product.mrp.toFixed(2)}</span>
                         )}
                       </div>
                       

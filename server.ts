@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import crypto from 'crypto';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -786,6 +785,7 @@ const PORT = Number(process.env.PORT) || 3000;
   // Vite middleware for development (skip in Vercel/Serverless env)
   async function setupViteOrListen() {
     if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+      const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: "spa",

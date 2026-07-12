@@ -64,7 +64,7 @@ function Navigation({ onOpenAuth }: { onOpenAuth: () => void }) {
         ⚠️ DEMO STORE: This website is created for testing purposes only. No actual orders or transactions are processed.
       </div>
       <header className="sticky top-0 z-50 bg-[#1B1F5E] border-b border-indigo-900 text-white shadow-md">
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div className="max-w-360 mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 font-bold tracking-tight text-2xl text-white hover:text-gray-200 transition-colors">
           <div className="flex items-center justify-center bg-[#F97316] rounded-xl p-1.5 shadow-md">
             <Store className="w-5 h-5 text-white" />
@@ -114,7 +114,7 @@ export default function App() {
       <Router>
       <div className="min-h-screen bg-[#F3F4F6] text-[#111827] font-sans selection:bg-[#F97316] selection:text-white flex flex-col">
         <Navigation onOpenAuth={() => setAuthModalOpen(true)} />
-        <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="flex-1 max-w-360 w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/product/:id" element={<ProductDetailPage />} />
@@ -127,7 +127,7 @@ export default function App() {
         
         {/* Footer */}
         <footer className="bg-gray-900 text-gray-400 py-12 mt-auto">
-          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="max-w-360 mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-2 font-bold tracking-tight text-xl text-white mb-4">
                 <div className="flex items-center justify-center bg-[#F97316] rounded-lg p-1.5">
@@ -164,7 +164,7 @@ export default function App() {
               </ul>
             </div>
           </div>
-          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-8 border-t border-gray-800 text-sm text-center">
+          <div className="max-w-360 mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-8 border-t border-gray-800 text-sm text-center">
             &copy; {new Date().getFullYear()} TestMarket. All rights reserved.
           </div>
         </footer>

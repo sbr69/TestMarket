@@ -5,3 +5,12 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
+
+/* Hide scrollbar for the Stellar Wallets Kit e-wallet modal list container */
+.stellar-wallets-kit section {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+.stellar-wallets-kit section::-webkit-scrollbar {
+  display: none !important;
+}

@@ -15,9 +15,8 @@ const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('he
 const swaggerDocument = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'swagger.json'), 'utf8'));
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
 
@@ -61,6 +60,33 @@ async function startServer() {
         const passwordHash = await bcrypt.hash(randomPassword, 10);
         user = await prisma.user.create({
           data: { name: name || 'Google User', email, passwordHash }
+        });
+      }
+
+      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+  app.post('/api/auth/stellar', async (req, res) => {
+    try {
+      const { publicKey } = req.body;
+      if (!publicKey) {
+        return res.status(400).json({ error: 'Public key is required' });
+      }
+
+      const email = `${publicKey}@stellar.wallet`;
+      const name = `${publicKey.substring(0, 5)}...${publicKey.substring(publicKey.length - 4)}`;
+
+      let user = await prisma.user.findUnique({ where: { email } });
+      if (!user) {
+        // Create user with random password
+        const randomPassword = crypto.randomBytes(16).toString('hex');
+        const passwordHash = await bcrypt.hash(randomPassword, 10);
+        user = await prisma.user.create({
+          data: { name, email, passwordHash }
         });
       }
 
@@ -279,6 +305,34 @@ async function startServer() {
         products: formattedProducts,
         pagination: { total, page: Number(page), limit: Number(limit), pages: Math.ceil(total / Number(limit)) }
       });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
+    }
+  });
+
+  app.get('/api/products/batch', async (req, res) => {
+    try {
+      const idsStr = req.query.ids;
+      if (!idsStr) {
+        return res.json([]);
+      }
+      const ids = String(idsStr).split(',').filter(Boolean);
+      const products = await prisma.product.findMany({
+        where: { id: { in: ids } },
+        include: {
+          images: { orderBy: { sortOrder: 'asc' } },
+          specs: true,
+          category: true
+        }
+      });
+      const formatted = products.map(product => ({
+        ...product,
+        discount_percent: Math.round(((product.mrp - product.price) / product.mrp) * 100),
+        seller_name: (product as any).sellerName,
+        estimated_delivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+      }));
+      res.json(formatted);
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
@@ -550,11 +604,17 @@ async function startServer() {
       const userId = req.user.userId;
       const { address, payment_method } = req.body;
       
+      let items = [];
       const cartForCheckout = await prisma.cart.findFirst({
         where: { userId, status: 'ACTIVE' },
         include: { items: { include: { product: true } } }
       });
-      const items = cartForCheckout?.items || [];
+      
+      if (cartForCheckout && cartForCheckout.items.length > 0) {
+        items = cartForCheckout.items.map((i: any) => ({ productId: i.productId, quantity: i.quantity }));
+      } else if (req.body.items && req.body.items.length > 0) {
+        items = req.body.items.map((i: any) => ({ productId: i.id || i.productId, quantity: i.quantity }));
+      }
       
       if (!items || items.length === 0) {
         return res.status(400).json({ error: 'Cart is empty', code: 'EMPTY_CART', status: 400 });
@@ -583,6 +643,63 @@ async function startServer() {
 
       const shipping = subtotal > 499 ? 0 : 50;
       const total = subtotal + shipping;
+
+      // Verify Stellar Transaction if payment method is Stellar Wallet
+      if (payment_method && payment_method.startsWith('Stellar Wallet (Tx: ')) {
+        const txHash = payment_method.substring(20, payment_method.length - 1);
+        console.log(`[Checkout] Verifying Stellar Transaction Hash: ${txHash}`);
+        
+        // If it's a simulated tx, skip network request
+        if (!txHash.startsWith('sim_tx_')) {
+          try {
+            let response = null;
+            let opData = null;
+            
+            // Retry up to 4 times with a 1.5s delay to allow Horizon to index the transaction operations
+            for (let attempt = 1; attempt <= 4; attempt++) {
+              console.log(`[Checkout] Fetching operations from Horizon (Attempt ${attempt}/4)...`);
+              response = await fetch(`https://horizon-testnet.stellar.org/transactions/${txHash}/operations`);
+              if (response.ok) {
+                opData = await response.json();
+                break;
+              }
+              if (attempt < 4) {
+                await new Promise(resolve => setTimeout(resolve, 1500));
+              }
+            }
+
+            if (!response || !response.ok) {
+              console.error(`[Checkout] Failed to retrieve transaction from Horizon: ${response ? response.status : 'No response'}`);
+              return res.status(400).json({ error: 'Stellar transaction not found or failed on Testnet (indexing delay)', code: 'INVALID_TRANSACTION', status: 400 });
+            }
+            
+            const operations = opData?._embedded?.records || [];
+            console.log(`[Checkout] Found ${operations.length} operations. Expected total: ${total.toFixed(2)} XLM`);
+            
+            // Find a valid payment operation to the merchant address
+            const validPayment = operations.find((op: any) => 
+              op.type === 'payment' &&
+              op.asset_type === 'native' &&
+              op.to === 'GAS7MXJI3CIRUPZTA75VBMJXAJGUYCLBPHCTZQWGC7OTVSAKZN553WYX' &&
+              op.transaction_successful === true &&
+              parseFloat(op.amount).toFixed(2) === total.toFixed(2)
+            );
+            
+            if (!validPayment) {
+              console.error(`[Checkout] No matching payment found. Expected: ${total.toFixed(2)} XLM to GAS7MX...`);
+              return res.status(400).json({ 
+                error: `No valid payment operation of ${total.toFixed(2)} XLM to the merchant address was found in transaction ${txHash}`, 
+                code: 'INVALID_TRANSACTION_PAYMENT', 
+                status: 400 
+              });
+            }
+            console.log(`[Checkout] Transaction verified successfully!`);
+          } catch (verifyErr) {
+            console.error('Error verifying Stellar transaction:', verifyErr);
+            return res.status(500).json({ error: 'Failed to verify Stellar transaction', code: 'VERIFICATION_ERROR', status: 500 });
+          }
+        }
+      }
       
       // Get or create dummy address
       let userAddress = await prisma.address.findFirst({ where: { userId } });
@@ -666,24 +783,31 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+  // Vite middleware for development (skip in Vercel/Serverless env)
+  async function setupViteOrListen() {
+    if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
+
+    if (!process.env.VERCEL) {
+      app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+      });
+    }
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
-}
+  setupViteOrListen();
 
-startServer();
+  export default app;
+
+

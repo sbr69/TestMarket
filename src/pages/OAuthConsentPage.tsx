@@ -6,7 +6,7 @@ export default function OAuthConsentPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { token, user, setAuthModalOpen } = useAuthStore();
-  
+
   const clientId = searchParams.get('client_id');
   const redirectUri = searchParams.get('redirect_uri');
   const responseType = searchParams.get('response_type');
@@ -57,7 +57,7 @@ export default function OAuthConsentPage() {
         body: JSON.stringify({ client_id: clientId, redirect_uri: redirectUri })
       });
       const data = await res.json();
-      
+
       if (!res.ok) {
         throw new Error(data.error || 'Failed to authorize');
       }
@@ -143,15 +143,15 @@ export default function OAuthConsentPage() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <button 
-            onClick={handleAuthorize} 
+          <button
+            onClick={handleAuthorize}
             disabled={isAuthorizing}
             className="w-full py-3 bg-[#F97316] text-white font-bold rounded-xl hover:bg-[#EA580C] transition-colors disabled:opacity-50"
           >
             {isAuthorizing ? 'Authorizing...' : 'Allow Access'}
           </button>
-          <button 
-            onClick={handleDeny} 
+          <button
+            onClick={handleDeny}
             disabled={isAuthorizing}
             className="w-full py-3 bg-white text-gray-700 font-bold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
           >

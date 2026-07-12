@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { Trash2, ShoppingBag, Store } from 'lucide-react';
+import { useAuthStore } from '../store/authStore';
+import AuthModal from '../components/AuthModal';
 
 interface ProductImage {
   id: string;
@@ -44,6 +46,15 @@ export default function CartPage() {
   const [productsData, setProductsData] = useState<Record<string, ProductDetail>>({});
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  useEffect(() => {
+    if (user && showAuthModal) {
+      setShowAuthModal(false);
+      navigate('/checkout');
+    }
+  }, [user, showAuthModal, navigate]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -51,19 +62,18 @@ export default function CartPage() {
         setLoading(false);
         return;
       }
-      
+
       try {
         const productIds = items.map(i => i.id);
-        const data: Record<string, ProductDetail> = {};
-        
-        for (const id of productIds) {
-          const res = await fetch(`/api/products/${id}`);
-          if (res.ok) {
-            data[id] = await res.json();
+        const res = await fetch(`/api/products/batch?ids=${productIds.join(',')}`);
+        if (res.ok) {
+          const products: ProductDetail[] = await res.json();
+          const data: Record<string, ProductDetail> = {};
+          for (const p of products) {
+            data[p.id] = p;
           }
+          setProductsData(data);
         }
-        
-        setProductsData(data);
         setLoading(false);
       } catch (err) {
         console.error('Failed to fetch cart products', err);
@@ -85,7 +95,7 @@ export default function CartPage() {
   }, 0);
 
   const totalDiscount = mrpTotal - total;
-  const shippingFee = total > 499 ? 0 : 49;
+  const shippingFee = total > 499 ? 0 : 50;
   const finalTotal = total + shippingFee;
   const upsellProducts = Object.values(productsData) as ProductDetail[];
 
@@ -114,18 +124,18 @@ export default function CartPage() {
             <h1 className="text-3xl font-bold tracking-tight text-gray-900 font-sans">Shopping Cart</h1>
             <span className="text-gray-500 font-bold">{items.length} {items.length === 1 ? 'item' : 'items'}</span>
           </div>
-          
+
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
             <ul className="divide-y divide-gray-100">
               {items.map(item => {
                 const product = productsData[item.id];
                 if (!product) return null;
-                
+
                 const imageUrl = product.images?.[0]?.url;
-                
+
                 return (
                   <li key={item.id} className="p-6 flex flex-col sm:flex-row sm:items-start gap-6 hover:bg-gray-50 transition-colors">
-                    <Link to={`/product/${product.id}`} className="w-24 h-24 sm:w-32 sm:h-32 bg-white border border-gray-200 rounded-xl flex-shrink-0 overflow-hidden relative flex items-center justify-center p-2 group">
+                    <Link to={`/product/${product.id}`} className="w-24 h-24 sm:w-32 sm:h-32 bg-white border border-gray-200 rounded-xl shrink-0 overflow-hidden relative flex items-center justify-center p-2 group">
                       {imageUrl ? (
                         <img src={imageUrl} alt={product.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform" />
                       ) : (
@@ -134,8 +144,8 @@ export default function CartPage() {
                         </div>
                       )}
                     </Link>
-                    
-                    <div className="flex-grow flex flex-col h-full">
+
+                    <div className="grow flex flex-col h-full">
                       <div className="flex justify-between items-start mb-1 gap-4">
                         <Link to={`/product/${product.id}`} className="hover:text-[#F97316] transition-colors">
                           <h3 className="font-bold text-gray-900 text-lg leading-snug font-sans">{product.name}</h3>
@@ -147,7 +157,7 @@ export default function CartPage() {
                           )}
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center gap-2 mb-4">
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{product.brand}</p>
                         <span className="text-gray-300">•</span>
@@ -156,20 +166,20 @@ export default function CartPage() {
                           Sold by SuperMart
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
                         <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-lg border border-gray-300 shadow-sm">
-                          <button 
+                          <button
                             onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
                             className="text-gray-500 hover:text-[#F97316] w-6 h-6 flex items-center justify-center font-bold text-lg"
                           >−</button>
                           <span className="w-8 text-center font-bold text-sm text-gray-900">{item.quantity}</span>
-                          <button 
+                          <button
                             onClick={() => updateQuantity(item.id, Math.min(product.stock, item.quantity + 1))}
                             className="text-gray-500 hover:text-[#F97316] w-6 h-6 flex items-center justify-center font-bold text-lg"
                           >+</button>
                         </div>
-                        <button 
+                        <button
                           onClick={() => removeItem(item.id)}
                           className="flex items-center gap-1.5 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-bold"
                         >
@@ -188,7 +198,7 @@ export default function CartPage() {
         <div className="lg:col-span-1">
           <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 sticky top-24 shadow-sm space-y-6">
             <h2 className="text-xl font-bold tracking-tight text-gray-900 border-b border-gray-100 pb-4 font-sans">Order Summary</h2>
-            
+
             <div className="space-y-4 text-sm font-medium">
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal</span>
@@ -215,9 +225,15 @@ export default function CartPage() {
                 You will save XLM {totalDiscount.toFixed(2)} on this order
               </p>
             </div>
-            
-            <button 
-              onClick={() => navigate('/checkout')}
+
+            <button
+              onClick={() => {
+                if (!user) {
+                  setShowAuthModal(true);
+                } else {
+                  navigate('/checkout');
+                }
+              }}
               className="w-full py-4 px-4 bg-[#F97316] text-white font-bold rounded-xl hover:bg-orange-600 active:scale-[0.98] transition-all flex justify-center items-center gap-2 shadow-md hover:shadow-lg text-lg"
             >
               Proceed to Checkout
@@ -231,7 +247,7 @@ export default function CartPage() {
           </div>
         </div>
       </div>
-      
+
       {/* Upsell Section */}
       <section className="pt-8 border-t border-gray-200">
         <h2 className="text-2xl font-bold text-gray-900 mb-6 font-sans">Customers also bought</h2>
@@ -245,7 +261,7 @@ export default function CartPage() {
                   <ShoppingBag className="w-8 h-8 text-gray-300" />
                 )}
               </Link>
-              <div className="p-4 flex flex-col flex-grow">
+              <div className="p-4 flex flex-col grow">
                 <Link to={`/product/${product.id}`} className="hover:text-[#F97316] transition-colors">
                   <h3 className="font-medium text-gray-900 mb-1 line-clamp-2 text-sm">{product.name}</h3>
                 </Link>
@@ -257,6 +273,11 @@ export default function CartPage() {
           ))}
         </div>
       </section>
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
     </div>
   );
 }

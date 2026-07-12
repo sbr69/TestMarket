@@ -56,8 +56,8 @@ const CAROUSEL_SLIDES = [
 
 const SkeletonCard = () => (
   <div className="flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm animate-pulse">
-    <div className="aspect-[4/5] bg-gray-200"></div>
-    <div className="p-4 flex flex-col flex-grow">
+    <div className="aspect-4/5 bg-gray-200"></div>
+    <div className="p-4 flex flex-col grow">
       <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
       <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
       <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
@@ -86,7 +86,7 @@ export default function HomePage() {
     });
     setSearchParams(newParams);
   };
-  
+
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const addItem = useCartStore(state => state.addItem);
@@ -145,9 +145,9 @@ export default function HomePage() {
     if (maxPrice) params.set('max_price', maxPrice);
     if (inStock) params.set('in_stock', 'true');
     if (ratingFilter) params.set('rating', ratingFilter);
-    
+
     // If on homepage without search/filter, load a mix of items
-    const fetchUrl = (q || category || sort || minPrice || maxPrice || inStock || ratingFilter) 
+    const fetchUrl = (q || category || sort || minPrice || maxPrice || inStock || ratingFilter)
       ? `/api/products/search?${params.toString()}`
       : `/api/products/search?limit=12`;
 
@@ -177,10 +177,10 @@ export default function HomePage() {
       {!q && !category && (
         <>
           {/* Hero Carousel */}
-          <div className="relative rounded-2xl overflow-hidden shadow-lg min-h-[400px] sm:min-h-[500px] flex group">
+          <div className="relative rounded-2xl overflow-hidden shadow-lg min-h-100 sm:min-h-125 flex group">
             {CAROUSEL_SLIDES.map((slide, i) => (
-              <div 
-                key={i} 
+              <div
+                key={i}
                 className={`absolute inset-0 transition-opacity duration-1000 ${i === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
               >
                 <div className="absolute inset-0 bg-black/40 mix-blend-multiply z-10"></div>
@@ -199,7 +199,7 @@ export default function HomePage() {
                 </div>
               </div>
             ))}
-            
+
             {/* Carousel Controls */}
             <button onClick={prevSlide} className="absolute left-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-colors opacity-0 group-hover:opacity-100">
               <ChevronLeft className="w-6 h-6" />
@@ -207,11 +207,11 @@ export default function HomePage() {
             <button onClick={nextSlide} className="absolute right-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-colors opacity-0 group-hover:opacity-100">
               <ChevronRight className="w-6 h-6" />
             </button>
-            
+
             {/* Dots */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex gap-2">
               {CAROUSEL_SLIDES.map((_, i) => (
-                <button 
+                <button
                   key={i}
                   onClick={() => setCurrentSlide(i)}
                   className={`w-2.5 h-2.5 rounded-full transition-all ${i === currentSlide ? 'bg-white w-8' : 'bg-white/50 hover:bg-white/80'}`}
@@ -239,7 +239,7 @@ export default function HomePage() {
           </section>
 
           {/* Deals of the Day */}
-          <section className="bg-gradient-to-r from-red-50 to-orange-50 rounded-2xl p-6 border border-orange-100">
+          <section className="bg-linear-to-r from-red-50 to-orange-50 rounded-2xl p-6 border border-orange-100">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
               <div className="flex items-center gap-2 text-red-600">
                 <Zap className="w-6 h-6 fill-current" />
@@ -257,14 +257,14 @@ export default function HomePage() {
                 </span>
               </div>
             </div>
-            
+
             {/* Horizontal Scroll for Deals */}
             <div className="flex overflow-x-auto pb-4 -mx-2 px-2 snap-x gap-4 hide-scrollbar">
               {loading ? (
-                Array.from({ length: 4 }).map((_, i) => <div key={i} className="min-w-[280px] snap-start"><SkeletonCard /></div>)
+                Array.from({ length: 4 }).map((_, i) => <div key={i} className="min-w-70 snap-start"><SkeletonCard /></div>)
               ) : (
                 products.slice(0, 5).map(product => (
-                  <div key={product.id} className="min-w-[280px] max-w-[280px] snap-start bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all group">
+                  <div key={product.id} className="min-w-70 max-w-70 snap-start bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all group">
                     <Link to={`/product/${product.id}`} className="block relative aspect-square bg-gray-50 p-4">
                       {product.image_url ? (
                         <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" />
@@ -275,7 +275,7 @@ export default function HomePage() {
                         {product.discount_percent}% OFF
                       </div>
                     </Link>
-                    <button 
+                    <button
                       onClick={(e) => { e.preventDefault(); if (token) toggleWishlist(product.id, token); else alert('Please sign in'); }}
                       className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors"
                     >
@@ -302,14 +302,14 @@ export default function HomePage() {
               <h2 className="text-2xl font-bold text-gray-900 font-sans">Featured Products</h2>
               <Link to="/?q=" className="text-[#F97316] font-bold text-sm hover:underline">View All</Link>
             </div>
-            
+
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
               ) : (
                 products.slice(0, 12).map(product => (
                   <div key={product.id} className="group relative flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
-                    <Link to={`/product/${product.id}`} className="aspect-[4/5] bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden block">
+                    <Link to={`/product/${product.id}`} className="aspect-4/5 bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden">
                       {product.image_url ? (
                         <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" />
                       ) : (
@@ -323,19 +323,19 @@ export default function HomePage() {
                         </div>
                       )}
                     </Link>
-                    <button 
+                    <button
                       onClick={(e) => { e.preventDefault(); if (token) toggleWishlist(product.id, token); else alert('Please sign in'); }}
                       className="absolute top-2 right-2 p-2 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors z-10"
                     >
                       <Heart className={`w-5 h-5 ${wishlistItems.some(w => w.productId === product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
                     </button>
-                    
-                    <div className="p-4 flex flex-col flex-grow">
+
+                    <div className="p-4 flex flex-col grow">
                       <Link to={`/product/${product.id}`} className="hover:text-[#F97316] transition-colors">
                         <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">{product.brand}</p>
                         <h3 className="font-medium text-gray-900 mb-1 line-clamp-2 text-sm leading-tight font-sans">{product.name}</h3>
                       </Link>
-                      
+
                       <div className="flex items-center gap-1 mb-2 mt-1">
                         <div className="flex text-yellow-400 text-xs">
                           {'★'.repeat(Math.floor(product.rating))}
@@ -349,8 +349,8 @@ export default function HomePage() {
                           <span className="text-xs text-gray-400 line-through font-mono">XLM {product.mrp.toFixed(2)}</span>
                         )}
                       </div>
-                      
-                      <button 
+
+                      <button
                         onClick={() => addItem(product.id)}
                         className="mt-4 w-full py-2 px-4 bg-white border border-gray-300 text-gray-900 text-sm font-bold rounded-lg hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition-colors flex justify-center items-center gap-2"
                       >
@@ -362,21 +362,21 @@ export default function HomePage() {
               )}
             </div>
           </section>
-          
+
           {/* Shop by Brand Logo Strip */}
           <section className="py-12 border-t border-gray-200">
-             <h2 className="text-center text-sm font-bold text-gray-400 uppercase tracking-widest mb-8">Trusted by Top Brands</h2>
-             <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16 opacity-50 grayscale hover:grayscale-0 transition-all">
-                <div className="text-2xl font-bold font-sans">Apple</div>
-                <div className="text-2xl font-bold font-sans tracking-tight">SAMSUNG</div>
-                <div className="text-2xl font-bold font-serif italic">Levi's</div>
-                <div className="text-2xl font-bold font-sans tracking-widest">SONY</div>
-                <div className="text-2xl font-bold font-mono">NIKE</div>
-             </div>
+            <h2 className="text-center text-sm font-bold text-gray-400 uppercase tracking-widest mb-8">Trusted by Top Brands</h2>
+            <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16 opacity-50 grayscale hover:grayscale-0 transition-all">
+              <div className="text-2xl font-bold font-sans">Apple</div>
+              <div className="text-2xl font-bold font-sans tracking-tight">SAMSUNG</div>
+              <div className="text-2xl font-bold font-serif italic">Levi's</div>
+              <div className="text-2xl font-bold font-sans tracking-widest">SONY</div>
+              <div className="text-2xl font-bold font-mono">NIKE</div>
+            </div>
           </section>
 
           {/* Second Promotional Banner */}
-          <section className="relative rounded-2xl overflow-hidden min-h-[250px] flex items-center bg-gray-900">
+          <section className="relative rounded-2xl overflow-hidden min-h-62.5 flex items-center bg-gray-900">
             <div className="absolute inset-0 opacity-50">
               <img src="https://images.unsplash.com/photo-1555529771-835f59fc5efe?w=1600&q=80" alt="Tech Accessories" className="w-full h-full object-cover" />
             </div>
@@ -398,7 +398,7 @@ export default function HomePage() {
           <aside className="w-full md:w-64 shrink-0 space-y-8 sticky top-24">
             <div>
               <h3 className="font-bold text-gray-900 mb-4 font-sans border-b border-gray-200 pb-2">Filters</h3>
-              
+
               <div className="space-y-6">
                 {/* Price Range */}
                 <div>
@@ -418,7 +418,7 @@ export default function HomePage() {
                       <label key={rating} className="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="rating" checked={ratingFilter === String(rating)} onChange={() => updateParams({ rating: String(rating) })} className="text-[#F97316] focus:ring-[#F97316] w-4 h-4 border-gray-300" />
                         <div className="flex items-center text-yellow-400 text-sm">
-                          {'★'.repeat(rating)}{'☆'.repeat(5-rating)}
+                          {'★'.repeat(rating)}{'☆'.repeat(5 - rating)}
                           <span className="text-gray-600 ml-1">& Up</span>
                         </div>
                       </label>
@@ -472,7 +472,7 @@ export default function HomePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {products.map(product => (
                   <div key={product.id} className="group relative flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
-                    <Link to={`/product/${product.id}`} className="aspect-[4/5] bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden block">
+                    <Link to={`/product/${product.id}`} className="aspect-4/5 bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden">
                       {product.image_url ? (
                         <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" />
                       ) : (
@@ -486,19 +486,19 @@ export default function HomePage() {
                         </div>
                       )}
                     </Link>
-                    <button 
+                    <button
                       onClick={(e) => { e.preventDefault(); if (token) toggleWishlist(product.id, token); else alert('Please sign in'); }}
                       className="absolute top-2 right-2 p-2 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors z-10"
                     >
                       <Heart className={`w-5 h-5 ${wishlistItems.some(w => w.productId === product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
                     </button>
-                    
-                    <div className="p-4 flex flex-col flex-grow">
+
+                    <div className="p-4 flex flex-col grow">
                       <Link to={`/product/${product.id}`} className="hover:text-[#F97316] transition-colors">
                         <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">{product.brand}</p>
                         <h3 className="font-medium text-gray-900 mb-1 line-clamp-2 text-sm leading-tight font-sans">{product.name}</h3>
                       </Link>
-                      
+
                       <div className="flex items-center gap-1 mb-2 mt-1">
                         <div className="flex text-yellow-400 text-xs">
                           {'★'.repeat(Math.floor(product.rating))}
@@ -512,8 +512,8 @@ export default function HomePage() {
                           <span className="text-xs text-gray-400 line-through font-mono">XLM {product.mrp.toFixed(2)}</span>
                         )}
                       </div>
-                      
-                      <button 
+
+                      <button
                         onClick={() => addItem(product.id)}
                         className="mt-4 w-full py-2 px-4 bg-white border border-gray-300 text-gray-900 text-sm font-bold rounded-lg hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition-colors flex justify-center items-center gap-2"
                       >

@@ -23,7 +23,7 @@ export default function AccountPage() {
   const { user, token, logout } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'orders' | 'wishlist' | 'profile' | 'addresses' | 'agent'>('orders');
   const { items: wishlistItems, fetchWishlist, toggleWishlist } = useWishlistStore();
-  
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
 
@@ -107,14 +107,14 @@ export default function AccountPage() {
                       <div className="space-y-6">
                         {order.items.map(item => (
                           <div key={item.id} className="flex gap-6 items-start">
-                            <Link to={`/product/${item.product.id}`} className="w-20 h-20 bg-gray-50 border border-gray-100 rounded-xl flex-shrink-0 flex items-center justify-center p-2 hover:border-[#F97316]">
+                            <Link to={`/product/${item.product.id}`} className="w-20 h-20 bg-gray-50 border border-gray-100 rounded-xl shrink-0 flex items-center justify-center p-2 hover:border-[#F97316]">
                               {item.product.images?.[0]?.url ? (
                                 <img src={item.product.images[0].url} alt={item.product.name} className="w-full h-full object-contain" />
                               ) : (
                                 <Package className="w-8 h-8 text-gray-300" />
                               )}
                             </Link>
-                            <div className="flex-grow pt-1">
+                            <div className="grow pt-1">
                               <Link to={`/product/${item.product.id}`}>
                                 <h3 className="font-bold text-[#1B1F5E] hover:text-[#F97316] text-base leading-snug mb-1">{item.product.name}</h3>
                               </Link>
@@ -162,13 +162,13 @@ export default function AccountPage() {
                           <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 font-medium">No Image</div>
                         )}
                       </Link>
-                      <button 
+                      <button
                         onClick={(e) => { e.preventDefault(); if (token) toggleWishlist(product.id, token); }}
                         className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors"
                       >
                         <Heart className="w-4 h-4 fill-red-500 text-red-500" />
                       </button>
-                      <div className="p-4 flex flex-col flex-grow">
+                      <div className="p-4 flex flex-col grow">
                         <Link to={`/product/${product.id}`} className="hover:text-red-600 transition-colors">
                           <h3 className="font-medium text-gray-900 line-clamp-1 text-sm">{product.name}</h3>
                         </Link>
@@ -190,7 +190,7 @@ export default function AccountPage() {
         return (
           <div className="space-y-8 max-w-2xl">
             <h2 className="text-2xl font-bold text-gray-900 font-sans">Profile Settings</h2>
-            
+
             <div className="bg-white p-6 rounded-2xl border border-gray-200 space-y-6">
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 bg-indigo-100 text-[#1B1F5E] rounded-full flex items-center justify-center text-3xl font-bold">
@@ -201,7 +201,7 @@ export default function AccountPage() {
                   <p className="text-gray-500">{user.email}</p>
                 </div>
               </div>
-              
+
               <form className="space-y-4 pt-4 border-t border-gray-100">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Full Name</label>
@@ -294,9 +294,8 @@ export default function AccountPage() {
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id as any)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-colors ${
-                      isActive ? 'bg-[#1B1F5E] text-white' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-colors ${isActive ? 'bg-[#1B1F5E] text-white' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      }`}
                   >
                     <Icon className="w-5 h-5" />
                     {item.label}
@@ -312,7 +311,7 @@ export default function AccountPage() {
             </nav>
           </div>
         </aside>
-        
+
         <main className="flex-1 min-w-0">
           {renderContent()}
         </main>

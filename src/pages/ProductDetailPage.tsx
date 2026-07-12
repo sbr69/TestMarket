@@ -76,7 +76,7 @@ export default function ProductDetailPage() {
   const isWishlisted = product ? wishlistItems.some(w => w.productId === product.id) : false;
   const [activeTab, setActiveTab] = useState<'description' | 'specs' | 'reviews'>('description');
   const [reviews, setReviews] = useState<Review[]>([]);
-  
+
   const [reviewForm, setReviewForm] = useState({ rating: 5, title: '', body: '' });
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -101,9 +101,9 @@ export default function ProductDetailPage() {
         if (data.images && data.images.length > 0) {
           setActiveImage(data.images[0].url);
         }
-        
+
         // Fetch similar products
-        if(data.category?.id || data.categoryId) {
+        if (data.category?.id || data.categoryId) {
           const catId = data.category?.id || data.categoryId;
           fetch(`/api/products/search?limit=6`) // Mock similar
             .then(r => r.json())
@@ -112,7 +112,7 @@ export default function ProductDetailPage() {
               setSimilarProducts(items.filter((p: any) => p.id !== data.id));
             });
         }
-        
+
         // Fetch reviews
         fetchReviews();
 
@@ -169,8 +169,8 @@ export default function ProductDetailPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-12">
-      <button 
-        onClick={() => navigate(-1)} 
+      <button
+        onClick={() => navigate(-1)}
         className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
@@ -182,15 +182,15 @@ export default function ProductDetailPage() {
         <div className="flex flex-col gap-4">
           <div className="relative aspect-square bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-sm group">
             {activeImage ? (
-              <img 
-                src={activeImage} 
-                alt={product.name} 
-                className="w-full h-full object-contain transition-transform duration-500 ease-in-out group-hover:scale-125 origin-center cursor-zoom-in" 
+              <img
+                src={activeImage}
+                alt={product.name}
+                className="w-full h-full object-contain transition-transform duration-500 ease-in-out group-hover:scale-125 origin-center cursor-zoom-in"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-400 font-medium">No Image Available</div>
             )}
-            <button 
+            <button
               onClick={() => { if (token && product) toggleWishlist(product.id, token); else alert('Please sign in'); }}
               className="absolute top-4 right-4 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
             >
@@ -203,9 +203,8 @@ export default function ProductDetailPage() {
                 <button
                   key={img.id}
                   onClick={() => setActiveImage(img.url)}
-                  className={`w-20 h-20 rounded-xl border-2 overflow-hidden flex-shrink-0 bg-white transition-colors ${
-                    activeImage === img.url ? 'border-[#F97316]' : 'border-transparent hover:border-gray-300 shadow-sm'
-                  }`}
+                  className={`w-20 h-20 rounded-xl border-2 overflow-hidden shrink-0 bg-white transition-colors ${activeImage === img.url ? 'border-[#F97316]' : 'border-transparent hover:border-gray-300 shadow-sm'
+                    }`}
                 >
                   <img src={img.url} alt="thumbnail" className="w-full h-full object-cover" />
                 </button>
@@ -224,7 +223,7 @@ export default function ProductDetailPage() {
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-4 font-sans leading-tight">
             {product.name}
           </h1>
-          
+
           <div className="flex items-center gap-4 mb-6">
             <div className="flex items-center gap-1 cursor-pointer hover:underline" onClick={() => setActiveTab('reviews')}>
               <div className="flex text-yellow-400">
@@ -249,7 +248,7 @@ export default function ProductDetailPage() {
                     XLM {product.mrp.toFixed(2)}
                   </span>
                   <span className="text-sm font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded mb-1.5">
-                    {product.discount_percent || Math.round((1 - product.price/product.mrp) * 100)}% OFF
+                    {product.discount_percent || Math.round((1 - product.price / product.mrp) * 100)}% OFF
                   </span>
                 </>
               )}
@@ -275,22 +274,22 @@ export default function ProductDetailPage() {
 
             <div className="flex flex-col sm:flex-row items-stretch gap-4 mb-8">
               <div className="flex items-center border-2 border-gray-200 rounded-xl overflow-hidden bg-white shrink-0">
-                <button 
+                <button
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   className="px-4 py-3 bg-gray-50 hover:bg-gray-100 text-gray-900 transition-colors font-bold text-xl"
                 >
                   -
                 </button>
                 <span className="w-16 text-center font-bold text-lg text-gray-900">{quantity}</span>
-                <button 
+                <button
                   onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
                   className="px-4 py-3 bg-gray-50 hover:bg-gray-100 text-gray-900 transition-colors font-bold text-xl"
                 >
                   +
                 </button>
               </div>
-              
-              <button 
+
+              <button
                 onClick={() => addItem(product.id, quantity)}
                 disabled={product.stock === 0}
                 className="flex-1 py-4 px-6 bg-[#F97316] text-white font-bold rounded-xl hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md hover:shadow-lg active:scale-[0.98] flex items-center justify-center gap-2"
@@ -299,7 +298,7 @@ export default function ProductDetailPage() {
                 Add to Cart
               </button>
 
-              <button 
+              <button
                 onClick={handleBuyNow}
                 disabled={product.stock === 0}
                 className="flex-1 py-4 px-6 bg-white border-2 border-[#1B1F5E] text-[#1B1F5E] font-bold rounded-xl hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors active:scale-[0.98] flex items-center justify-center gap-2"
@@ -313,7 +312,7 @@ export default function ProductDetailPage() {
                 <MapPin className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-bold text-gray-900">Delivery Options</p>
-                  <p className="text-sm font-medium text-gray-500">Delivery by {new Date(product.estimated_delivery || Date.now() + 86400000*3).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                  <p className="text-sm font-medium text-gray-500">Delivery by {new Date(product.estimated_delivery || Date.now() + 86400000 * 3).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -331,19 +330,19 @@ export default function ProductDetailPage() {
       {/* Product Details Tabs */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="flex border-b border-gray-200">
-          <button 
+          <button
             onClick={() => setActiveTab('description')}
             className={`flex-1 py-4 text-center font-bold font-sans transition-colors ${activeTab === 'description' ? 'text-[#F97316] border-b-2 border-[#F97316]' : 'text-gray-500 hover:bg-gray-50'}`}
           >
             Description
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('specs')}
             className={`flex-1 py-4 text-center font-bold font-sans transition-colors ${activeTab === 'specs' ? 'text-[#F97316] border-b-2 border-[#F97316]' : 'text-gray-500 hover:bg-gray-50'}`}
           >
             Specifications
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('reviews')}
             className={`flex-1 py-4 text-center font-bold font-sans transition-colors ${activeTab === 'reviews' ? 'text-[#F97316] border-b-2 border-[#F97316]' : 'text-gray-500 hover:bg-gray-50'}`}
           >
@@ -387,9 +386,9 @@ export default function ProductDetailPage() {
                     <p className="text-sm font-medium text-gray-500 mt-1">Based on {product.reviewCount || 0} reviews</p>
                   </div>
                 </div>
-                
+
                 <div className="space-y-3">
-                  {[5,4,3,2,1].map(star => {
+                  {[5, 4, 3, 2, 1].map(star => {
                     const pct = star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 5 : 5;
                     return (
                       <div key={star} className="flex items-center gap-3">
@@ -402,7 +401,7 @@ export default function ProductDetailPage() {
                     )
                   })}
                 </div>
-                
+
                 {token ? (
                   <button onClick={() => setShowReviewForm(!showReviewForm)} className="mt-8 w-full py-3 px-4 bg-white border-2 border-gray-200 text-gray-900 font-bold rounded-xl hover:border-gray-300 transition-colors">
                     {showReviewForm ? 'Cancel Review' : 'Write a Review'}
@@ -418,7 +417,7 @@ export default function ProductDetailPage() {
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-bold text-gray-700 mb-1">Rating</label>
-                        <select value={reviewForm.rating} onChange={e => setReviewForm({...reviewForm, rating: Number(e.target.value)})} className="w-full h-10 px-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#F97316] outline-none bg-white">
+                        <select value={reviewForm.rating} onChange={e => setReviewForm({ ...reviewForm, rating: Number(e.target.value) })} className="w-full h-10 px-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#F97316] outline-none bg-white">
                           <option value={5}>5 - Excellent</option>
                           <option value={4}>4 - Good</option>
                           <option value={3}>3 - Average</option>
@@ -428,11 +427,11 @@ export default function ProductDetailPage() {
                       </div>
                       <div>
                         <label className="block text-sm font-bold text-gray-700 mb-1">Review Title</label>
-                        <input required type="text" value={reviewForm.title} onChange={e => setReviewForm({...reviewForm, title: e.target.value})} className="w-full h-10 px-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#F97316] outline-none" placeholder="Summarize your experience" />
+                        <input required type="text" value={reviewForm.title} onChange={e => setReviewForm({ ...reviewForm, title: e.target.value })} className="w-full h-10 px-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#F97316] outline-none" placeholder="Summarize your experience" />
                       </div>
                       <div>
                         <label className="block text-sm font-bold text-gray-700 mb-1">Review Details</label>
-                        <textarea required value={reviewForm.body} onChange={e => setReviewForm({...reviewForm, body: e.target.value})} className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#F97316] outline-none resize-none h-24" placeholder="What did you like or dislike?"></textarea>
+                        <textarea required value={reviewForm.body} onChange={e => setReviewForm({ ...reviewForm, body: e.target.value })} className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#F97316] outline-none resize-none h-24" placeholder="What did you like or dislike?"></textarea>
                       </div>
                       <button type="submit" disabled={isSubmittingReview} className="py-3 px-6 bg-[#1B1F5E] text-white font-bold rounded-xl hover:bg-indigo-900 transition-colors disabled:opacity-50">
                         {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
@@ -440,7 +439,7 @@ export default function ProductDetailPage() {
                     </div>
                   </form>
                 )}
-              
+
                 {reviews.length > 0 ? reviews.map(review => (
                   <div key={review.id} className="border-b border-gray-100 pb-6 last:border-0 last:pb-0">
                     <div className="flex items-center justify-between mb-2">
@@ -479,7 +478,7 @@ export default function ProductDetailPage() {
           <h2 className="text-2xl font-bold text-gray-900 mb-6 font-sans">Similar Products</h2>
           <div className="flex overflow-x-auto pb-4 -mx-2 px-2 snap-x gap-6 hide-scrollbar">
             {similarProducts.map(product => (
-              <div key={product.id} className="min-w-[240px] max-w-[240px] snap-start bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-all group">
+              <div key={product.id} className="min-w-60 max-w-60 snap-start bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-all group">
                 <Link to={`/product/${product.id}`} className="block relative aspect-square bg-gray-50 p-4">
                   {(product as any).image_url || (product.images && product.images[0]) ? (
                     <img src={(product as any).image_url || product.images[0].url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" />

@@ -1,3 +1,5 @@
-import app from '../server.js';
+import app from '../dist/server.cjs';
 
-export default app;
+const handler = (app as any).default || app;
+
+export default handler;

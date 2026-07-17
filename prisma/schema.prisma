@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -37,6 +38,8 @@ model Address {
   isDefault  Boolean  @default(false)
   
   orders     Order[]
+
+  @@index([userId])
 }
 
 model Category {
@@ -71,6 +74,11 @@ model Product {
   orderItems      OrderItem[]
   reviews         Review[]
   wishlistedBy    Wishlist[]
+
+  @@index([categoryId, isActive, createdAt])
+  @@index([isActive, price])
+  @@index([isActive, rating])
+  @@index([isActive, stock])
 }
 
 model ProductImage {
@@ -79,6 +87,8 @@ model ProductImage {
   product   Product @relation(fields: [productId], references: [id])
   url       String
   sortOrder Int     @default(0)
+
+  @@index([productId, sortOrder])
 }
 
 model ProductSpec {
@@ -87,6 +97,8 @@ model ProductSpec {
   product   Product @relation(fields: [productId], references: [id])
   key       String
   value     String
+
+  @@index([productId])
 }
 
 model Cart {
@@ -99,6 +111,8 @@ model Cart {
   
   items     CartItem[]
   orders    Order[]
+
+  @@index([userId, status])
 }
 
 model CartItem {
@@ -112,6 +126,7 @@ model CartItem {
   updatedAt DateTime @updatedAt
 
   @@unique([cartId, productId])
+  @@index([productId])
 }
 
 model Order {
@@ -125,10 +140,15 @@ model Order {
   total         Float
   status        String      @default("Processing") // Processing, Shipped, Delivered, Cancelled
   paymentMethod String
+  stellarTxHash String?     @unique
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   
   items         OrderItem[]
+
+  @@index([userId, createdAt])
+  @@index([cartId])
+  @@index([addressId])
 }
 
 model OrderItem {
@@ -140,6 +160,8 @@ model OrderItem {
   quantity        Int
   priceAtPurchase Float
   createdAt       DateTime @default(now())
+
+  @@index([productId, orderId])
 }
 
 model Review {
@@ -153,6 +175,9 @@ model Review {
   body             String
   verifiedPurchase Boolean  @default(false)
   createdAt        DateTime @default(now())
+
+  @@index([productId, createdAt])
+  @@index([userId])
 }
 
 model Wishlist {
@@ -164,6 +189,7 @@ model Wishlist {
   createdAt DateTime @default(now())
 
   @@unique([userId, productId])
+  @@index([productId])
 }
 
 model OAuthClient {
@@ -183,4 +209,16 @@ model OAuthAuthCode {
   user        User     @relation(fields: [userId], references: [id])
   redirectUri String
   expiresAt   DateTime
+
+  @@index([expiresAt])
+  @@index([clientId, userId])
+}
+
+model WalletLoginChallenge {
+  id        String   @id
+  publicKey String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }

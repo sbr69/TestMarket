@@ -7,54 +7,77 @@ interface WishlistItem {
 
 interface WishlistState {
   items: WishlistItem[];
-  fetchWishlist: (token: string) => Promise<void>;
-  toggleWishlist: (productId: string, token: string) => Promise<void>;
+  loadedForUserId: string | null;
+  pending: Record<string, true>;
+  fetchWishlist: (userId: string, token?: string) => Promise<void>;
+  toggleWishlist: (productId: string, token?: string) => Promise<void>;
   isInWishlist: (productId: string) => boolean;
 }
 
+let wishlistRequest: Promise<void> | null = null;
+let wishlistRequestUserId: string | null = null;
+
+const authHeaders = (token?: string) => token ? { Authorization: `Bearer ${token}` } : {};
+
 export const useWishlistStore = create<WishlistState>((set, get) => ({
   items: [],
+  loadedForUserId: null,
+  pending: {},
   
-  fetchWishlist: async (token: string) => {
-    try {
-      const res = await fetch('/api/wishlist', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
+  fetchWishlist: async (userId: string, token?: string) => {
+    if (get().loadedForUserId === userId) return;
+    if (wishlistRequest && wishlistRequestUserId === userId) return wishlistRequest;
+
+    set({ items: [], loadedForUserId: null });
+    wishlistRequestUserId = userId;
+    wishlistRequest = (async () => {
+      try {
+        const res = await fetch('/api/wishlist', { headers: authHeaders(token) });
+        if (!res.ok) throw new Error('Wishlist request failed');
         const data = await res.json();
-        set({ items: data.map((item: any) => ({ productId: item.productId, product: item.product })) });
+        if (wishlistRequestUserId === userId) {
+          set({ items: data.map((item: any) => ({ productId: item.productId, product: item.product })), loadedForUserId: userId });
+        }
+      } catch (err) {
+        console.error('Failed to fetch wishlist', err);
+      } finally {
+        wishlistRequest = null;
+        wishlistRequestUserId = null;
       }
-    } catch (err) {
-      console.error('Failed to fetch wishlist', err);
-    }
+    })();
+
+    return wishlistRequest;
   },
   
-  toggleWishlist: async (productId: string, token: string) => {
+  toggleWishlist: async (productId: string, token?: string) => {
+    if (get().pending[productId]) return;
     const isWished = get().isInWishlist(productId);
+    const previousItems = get().items;
+    set({ pending: { ...get().pending, [productId]: true } });
     
     // Optimistic update
-    if (isWished) {
-      set({ items: get().items.filter(i => i.productId !== productId) });
-      try {
-        await fetch(`/api/wishlist/${productId}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } catch (err) {
-        // Revert on failure
-        set({ items: [...get().items, { productId }] });
-      }
-    } else {
-      set({ items: [...get().items, { productId }] });
-      try {
-        await fetch(`/api/wishlist/${productId}`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } catch (err) {
-        // Revert on failure
+    try {
+      if (isWished) {
         set({ items: get().items.filter(i => i.productId !== productId) });
+        const response = await fetch(`/api/wishlist/${productId}`, {
+          method: 'DELETE',
+          headers: authHeaders(token)
+        });
+        if (!response.ok) throw new Error('Wishlist delete failed');
+      } else {
+        set({ items: [...get().items, { productId }] });
+        const response = await fetch(`/api/wishlist/${productId}`, {
+          method: 'POST',
+          headers: authHeaders(token)
+        });
+        if (!response.ok) throw new Error('Wishlist create failed');
       }
+    } catch {
+      // Revert a failed optimistic update to the exact prior state.
+      set({ items: previousItems });
+    } finally {
+      const { [productId]: _, ...pending } = get().pending;
+      set({ pending });
     }
   },
   

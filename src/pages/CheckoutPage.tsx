@@ -7,6 +7,7 @@ import { useToastStore } from '../store/toastStore';
 import { ShieldCheck, Truck, CreditCard, CheckCircle2, ChevronRight, FileText, ShoppingBag } from 'lucide-react';
 import { StellarWalletsKit } from '../utils/stellarWallet';
 import * as StellarSdk from '@stellar/stellar-sdk';
+import { fetchPublicJson } from '../utils/apiCache';
 
 interface ProductDetail {
   id: string;
@@ -17,7 +18,7 @@ interface ProductDetail {
 
 export default function CheckoutPage() {
   const { items, clearCart } = useCartStore();
-  const { token, user } = useAuthStore();
+  const { user, sessionResolved } = useAuthStore();
   const { addToast } = useToastStore();
   const navigate = useNavigate();
 
@@ -79,11 +80,11 @@ export default function CheckoutPage() {
   };
 
   useEffect(() => {
-    if (!user) {
+    if (sessionResolved && !user) {
       addToast('Please login to continue to checkout', 'error');
       navigate('/cart');
     }
-  }, [user, navigate, addToast]);
+  }, [user, sessionResolved, navigate, addToast]);
 
   useEffect(() => {
     if (items.length === 0 && step !== 3) {
@@ -94,15 +95,12 @@ export default function CheckoutPage() {
     const fetchProducts = async () => {
       try {
         const productIds = items.map(i => i.id);
-        const res = await fetch(`/api/products/batch?ids=${productIds.join(',')}`);
-        if (res.ok) {
-          const products: ProductDetail[] = await res.json();
-          const data: Record<string, ProductDetail> = {};
-          for (const p of products) {
-            data[p.id] = p;
-          }
-          setProductsData(data);
+        const products = await fetchPublicJson<ProductDetail[]>(`/api/products/batch?ids=${productIds.join(',')}`);
+        const data: Record<string, ProductDetail> = {};
+        for (const p of products) {
+          data[p.id] = p;
         }
+        setProductsData(data);
       } catch (err) {
         console.error(err);
       }
@@ -233,13 +231,10 @@ export default function CheckoutPage() {
         finalPaymentMethod = `Stellar Wallet (Tx: ${txHash})`;
       }
 
-      if (token) {
+      if (user) {
         const checkoutRes = await fetch('/api/checkout', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             address: fullAddress,
             payment_method: finalPaymentMethod,
@@ -266,20 +261,8 @@ export default function CheckoutPage() {
           addToast(errData.error || 'Checkout failed. Please try again.', 'error');
         }
       } else {
-        // Guest checkout simulation
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setPurchasedItems(items.map(item => {
-          const product = productsData[item.id];
-          return {
-            name: product?.name || 'Product',
-            quantity: item.quantity,
-            price: product?.price || 0
-          };
-        }));
-        setInvoiceTotal(finalTotal);
-        setOrderId('ORD-' + Math.random().toString(36).substring(2, 10).toUpperCase());
-        clearCart();
-        setStep(3);
+        addToast('Your session has expired. Please sign in again.', 'error');
+        navigate('/cart');
       }
     } catch (err) {
       console.error(err);

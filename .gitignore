@@ -1,19 +1,45 @@
+# Dependencies
 node_modules/
+
+# Build and test output
 build/
 dist/
 coverage/
+playwright-report/
+test-results/
 
+# Logs
 .DS_Store
+Thumbs.db
+Desktop.ini
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 *.tsbuildinfo
 
+# Secrets and machine-specific environment overrides
 .env
 .env.*
 !.env.example
 
+# Local tooling caches
 .vite/
 .cache/
 .eslintcache
+.turbo/
+.aistudio/
 
+# Local database files; keep Prisma schema and migrations versioned
+prisma/*.db
+prisma/*.db-journal
+
+# Supabase CLI and Vercel local state
+supabase/.temp/
+supabase/.branches/
+.vercel/
+
+# IDE settings
 .idea/
 .vscode/

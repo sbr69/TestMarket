@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/authStore';
 export default function OAuthConsentPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { token, user, setAuthModalOpen } = useAuthStore();
+  const { user, sessionResolved, setAuthModalOpen } = useAuthStore();
 
   const clientId = searchParams.get('client_id');
   const redirectUri = searchParams.get('redirect_uri');
@@ -22,7 +22,9 @@ export default function OAuthConsentPage() {
       return;
     }
 
-    if (!token) {
+    if (!sessionResolved) return;
+
+    if (!user) {
       setAuthModalOpen(true);
       return;
     }
@@ -43,7 +45,7 @@ export default function OAuthConsentPage() {
       .catch(err => {
         setError(err.message);
       });
-  }, [clientId, redirectUri, responseType, token, navigate]);
+  }, [clientId, redirectUri, responseType, user, sessionResolved]);
 
   const handleAuthorize = async () => {
     setIsAuthorizing(true);
@@ -51,8 +53,7 @@ export default function OAuthConsentPage() {
       const res = await fetch('/api/oauth/authorize', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ client_id: clientId, redirect_uri: redirectUri })
       });

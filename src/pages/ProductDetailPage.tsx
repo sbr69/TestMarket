@@ -4,6 +4,7 @@ import { ArrowLeft, Truck, Shield, RotateCcw, Heart, ShoppingBag, MapPin, Store 
 import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useAuthStore } from '../store/authStore';
+import { fetchPublicJson, invalidatePublicCache } from '../utils/apiCache';
 
 interface ProductSpec {
   id: string;
@@ -27,7 +28,7 @@ interface Product {
   stock: number;
   rating: number;
   reviewCount: number;
-  category: { name: string };
+  category: { id: string; name: string; slug: string };
   specs: ProductSpec[];
   images: ProductImage[];
   estimated_delivery: string;
@@ -71,7 +72,7 @@ export default function ProductDetailPage() {
   const addItem = useCartStore(state => state.addItem);
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState<string>('');
-  const { token } = useAuthStore();
+  const { user } = useAuthStore();
   const { items: wishlistItems, toggleWishlist, fetchWishlist } = useWishlistStore();
   const isWishlisted = product ? wishlistItems.some(w => w.productId === product.id) : false;
   const [activeTab, setActiveTab] = useState<'description' | 'specs' | 'reviews'>('description');
@@ -83,46 +84,53 @@ export default function ProductDetailPage() {
 
   const fetchReviews = () => {
     fetch(`/api/products/${id}/reviews`)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('Unable to load reviews');
+        return res.json();
+      })
       .then(data => setReviews(data))
       .catch(err => console.error('Failed to fetch reviews', err));
   };
 
   useEffect(() => {
-    if (token) fetchWishlist(token);
-  }, [token, fetchWishlist]);
+    if (user) void fetchWishlist(user.id);
+  }, [user, fetchWishlist]);
 
   useEffect(() => {
+    let isCurrent = true;
     setLoading(true);
-    fetch(`/api/products/${id}`)
-      .then(res => res.json())
+    fetchPublicJson<Product>(`/api/products/${id}`, 60_000)
       .then(data => {
+        if (!isCurrent) return;
         setProduct(data);
         if (data.images && data.images.length > 0) {
           setActiveImage(data.images[0].url);
         }
 
         // Fetch similar products
-        if (data.category?.id || data.categoryId) {
-          const catId = data.category?.id || data.categoryId;
-          fetch(`/api/products/search?limit=6`) // Mock similar
-            .then(r => r.json())
+        if (data.category?.slug) {
+          fetchPublicJson<{ products?: Product[] }>(`/api/products/search?category=${encodeURIComponent(data.category.slug)}&limit=6`)
             .then(simData => {
-              const items = Array.isArray(simData.products) ? simData.products : Array.isArray(simData) ? simData : [];
-              setSimilarProducts(items.filter((p: any) => p.id !== data.id));
-            });
+              if (!isCurrent) return;
+              const items = Array.isArray(simData.products) ? simData.products : [];
+              setSimilarProducts(items.filter((p: Product) => p.id !== data.id));
+            })
+            .catch(err => console.error('Failed to fetch similar products', err));
         }
-
-        // Fetch reviews
-        fetchReviews();
 
         setLoading(false);
       })
       .catch(err => {
+        if (!isCurrent) return;
         console.error('Failed to fetch product', err);
         setLoading(false);
       });
+    return () => { isCurrent = false; };
   }, [id]);
+
+  useEffect(() => {
+    if (activeTab === 'reviews' && id) fetchReviews();
+  }, [activeTab, id]);
 
   if (loading) return <ProductDetailSkeleton />;
   if (!product) {
@@ -141,7 +149,7 @@ export default function ProductDetailPage() {
 
   const submitReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) {
+    if (!user) {
       alert('Please sign in to submit a review');
       return;
     }
@@ -149,12 +157,13 @@ export default function ProductDetailPage() {
     try {
       const res = await fetch(`/api/products/${id}/reviews`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reviewForm)
       });
       if (res.ok) {
         setReviewForm({ rating: 5, title: '', body: '' });
         setShowReviewForm(false);
+        invalidatePublicCache(`/api/products/${id}`);
         fetchReviews();
         // Option: refresh product data to update rating?
       } else {
@@ -186,12 +195,14 @@ export default function ProductDetailPage() {
                 src={activeImage}
                 alt={product.name}
                 className="w-full h-full object-contain transition-transform duration-500 ease-in-out group-hover:scale-125 origin-center cursor-zoom-in"
+                fetchPriority="high"
+                decoding="async"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-400 font-medium">No Image Available</div>
             )}
             <button
-              onClick={() => { if (token && product) toggleWishlist(product.id, token); else alert('Please sign in'); }}
+              onClick={() => { if (user && product) void toggleWishlist(product.id); else alert('Please sign in'); }}
               className="absolute top-4 right-4 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
             >
               <Heart className={`w-6 h-6 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
@@ -206,7 +217,7 @@ export default function ProductDetailPage() {
                   className={`w-20 h-20 rounded-xl border-2 overflow-hidden shrink-0 bg-white transition-colors ${activeImage === img.url ? 'border-[#F97316]' : 'border-transparent hover:border-gray-300 shadow-sm'
                     }`}
                 >
-                  <img src={img.url} alt="thumbnail" className="w-full h-full object-cover" />
+                  <img src={img.url} alt="thumbnail" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                 </button>
               ))}
             </div>
@@ -402,7 +413,7 @@ export default function ProductDetailPage() {
                   })}
                 </div>
 
-                {token ? (
+                {user ? (
                   <button onClick={() => setShowReviewForm(!showReviewForm)} className="mt-8 w-full py-3 px-4 bg-white border-2 border-gray-200 text-gray-900 font-bold rounded-xl hover:border-gray-300 transition-colors">
                     {showReviewForm ? 'Cancel Review' : 'Write a Review'}
                   </button>
@@ -481,7 +492,7 @@ export default function ProductDetailPage() {
               <div key={product.id} className="min-w-60 max-w-60 snap-start bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-all group">
                 <Link to={`/product/${product.id}`} className="block relative aspect-square bg-gray-50 p-4">
                   {(product as any).image_url || (product.images && product.images[0]) ? (
-                    <img src={(product as any).image_url || product.images[0].url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" />
+                    <img src={(product as any).image_url || product.images[0].url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" loading="lazy" decoding="async" />
                   ) : (
                     <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 font-medium">No Image</div>
                   )}

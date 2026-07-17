@@ -12,13 +12,17 @@ export default defineConfig(() => {
       },
     },
     build: {
-      chunkSizeWarningLimit: 1200,
+      chunkSizeWarningLimit: 500,
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('node_modules')) {
-              return 'vendor';
-            }
+            // Keep the initial route lean. Wallet SDKs are only needed by the
+            // authentication modal and checkout, both of which are lazy routes.
+            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) return 'react-vendor';
+            if (id.includes('node_modules/react-router')) return 'router-vendor';
+            if (id.includes('node_modules/lucide-react')) return 'icons-vendor';
+            if (id.includes('@react-oauth') || id.includes('google-auth-library')) return 'google-auth';
+            if (id.includes('@stellar/') || id.includes('@creit.tech/stellar-wallets-kit') || id.includes('@lobstrco/')) return 'stellar-wallet';
           }
         }
       }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
-import { GoogleLogin } from '@react-oauth/google';
+import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
 import { X } from 'lucide-react';
 import { StellarWalletsKit } from '../utils/stellarWallet';
 
@@ -30,7 +30,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
       const data = await res.json();
       if (res.ok) {
-        setAuth(data.token, data.user);
+        setAuth(data.user);
         addToast('Successfully logged in with Google!', 'success');
         onClose();
       } else {
@@ -49,15 +49,30 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setLoading(true);
       const { address } = await StellarWalletsKit.authModal();
 
-      const authRes = await fetch('/api/auth/stellar', {
+      const challengeResponse = await fetch('/api/auth/stellar/challenge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ publicKey: address })
       });
+      const challengeData = await challengeResponse.json();
+      if (!challengeResponse.ok) {
+        throw new Error(challengeData.error || 'Unable to create a wallet sign-in challenge');
+      }
+
+      const { signedMessage } = await StellarWalletsKit.signMessage(challengeData.challenge, {
+        address,
+        networkPassphrase: 'Test SDF Network ; September 2015'
+      });
+
+      const authRes = await fetch('/api/auth/stellar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicKey: address, challenge: challengeData.challenge, signature: signedMessage })
+      });
       
       const data = await authRes.json();
       if (authRes.ok) {
-        setAuth(data.token, data.user);
+        setAuth(data.user);
         addToast('Successfully logged in with Stellar Wallet!', 'success');
         onClose();
       } else {
@@ -93,7 +108,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       const data = await res.json();
 
       if (res.ok) {
-        setAuth(data.token, data.user);
+        setAuth(data.user);
         addToast(isLogin ? 'Successfully logged in!' : 'Account created!', 'success');
         onClose();
       } else {
@@ -108,6 +123,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   };
 
   return (
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || 'dummy-client-id'}>
     <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-3xl p-8 max-w-md w-full relative shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         <button onClick={onClose} className="absolute top-6 right-6 text-gray-400 hover:text-gray-900 transition-colors">
@@ -186,5 +202,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         </p>
       </div>
     </div>
+    </GoogleOAuthProvider>
   );
 }

@@ -20,7 +20,7 @@ interface Order {
 }
 
 export default function AccountPage() {
-  const { user, token, logout } = useAuthStore();
+  const { user, sessionResolved, logout } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'orders' | 'wishlist' | 'profile' | 'addresses' | 'agent'>('orders');
   const { items: wishlistItems, fetchWishlist, toggleWishlist } = useWishlistStore();
 
@@ -28,21 +28,25 @@ export default function AccountPage() {
   const [loadingOrders, setLoadingOrders] = useState(false);
 
   useEffect(() => {
-    if (token) {
+    if (user) {
       if (activeTab === 'orders') {
         setLoadingOrders(true);
-        fetch('/api/orders', { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch('/api/orders')
           .then(res => res.json())
           .then(data => { setOrders(data); setLoadingOrders(false); })
           .catch(() => setLoadingOrders(false));
       }
       if (activeTab === 'wishlist') {
-        fetchWishlist(token);
+        void fetchWishlist(user.id);
       }
     }
-  }, [token, activeTab, fetchWishlist]);
+  }, [user, activeTab, fetchWishlist]);
 
-  if (!token || !user) {
+  if (!sessionResolved) {
+    return <div className="max-w-3xl mx-auto mt-8 h-80 animate-pulse rounded-2xl bg-white" aria-busy="true" />;
+  }
+
+  if (!user) {
     return (
       <div className="text-center py-20 px-4 bg-white rounded-2xl border border-gray-200 max-w-3xl mx-auto mt-8 shadow-sm">
         <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto text-gray-300 mb-6">
@@ -163,7 +167,7 @@ export default function AccountPage() {
                         )}
                       </Link>
                       <button
-                        onClick={(e) => { e.preventDefault(); if (token) toggleWishlist(product.id, token); }}
+                        onClick={(e) => { e.preventDefault(); void toggleWishlist(product.id); }}
                         className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors"
                       >
                         <Heart className="w-4 h-4 fill-red-500 text-red-500" />
@@ -303,7 +307,7 @@ export default function AccountPage() {
                 );
               })}
               <button
-                onClick={logout}
+                onClick={() => { void logout(); }}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-red-600 hover:bg-red-50 mt-4 border-t border-gray-100 rounded-t-none"
               >
                 Log Out

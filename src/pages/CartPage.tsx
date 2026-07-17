@@ -4,6 +4,7 @@ import { useCartStore } from '../store/cartStore';
 import { Trash2, ShoppingBag, Store } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import AuthModal from '../components/AuthModal';
+import { fetchPublicJson } from '../utils/apiCache';
 
 interface ProductImage {
   id: string;
@@ -65,15 +66,12 @@ export default function CartPage() {
 
       try {
         const productIds = items.map(i => i.id);
-        const res = await fetch(`/api/products/batch?ids=${productIds.join(',')}`);
-        if (res.ok) {
-          const products: ProductDetail[] = await res.json();
-          const data: Record<string, ProductDetail> = {};
-          for (const p of products) {
-            data[p.id] = p;
-          }
-          setProductsData(data);
+        const products = await fetchPublicJson<ProductDetail[]>(`/api/products/batch?ids=${productIds.join(',')}`);
+        const data: Record<string, ProductDetail> = {};
+        for (const p of products) {
+          data[p.id] = p;
         }
+        setProductsData(data);
         setLoading(false);
       } catch (err) {
         console.error('Failed to fetch cart products', err);
@@ -137,7 +135,7 @@ export default function CartPage() {
                   <li key={item.id} className="p-6 flex flex-col sm:flex-row sm:items-start gap-6 hover:bg-gray-50 transition-colors">
                     <Link to={`/product/${product.id}`} className="w-24 h-24 sm:w-32 sm:h-32 bg-white border border-gray-200 rounded-xl shrink-0 overflow-hidden relative flex items-center justify-center p-2 group">
                       {imageUrl ? (
-                        <img src={imageUrl} alt={product.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform" />
+                        <img src={imageUrl} alt={product.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform" loading="lazy" decoding="async" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-300">
                           <ShoppingBag className="w-8 h-8" />
@@ -256,7 +254,7 @@ export default function CartPage() {
             <div key={product.id + 'upsell'} className="group relative flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
               <Link to={`/product/${product.id}`} className="aspect-square bg-gray-50 p-4 flex items-center justify-center">
                 {product.images?.[0]?.url ? (
-                  <img src={product.images[0].url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" />
+                  <img src={product.images[0].url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" loading="lazy" decoding="async" />
                 ) : (
                   <ShoppingBag className="w-8 h-8 text-gray-300" />
                 )}

@@ -1,27 +1,55 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
-interface AuthStore {
-  token: string | null;
-  user: { id: string; name: string; email: string; phone?: string } | null;
-  isAuthModalOpen: boolean;
-  setAuthModalOpen: (isOpen: boolean) => void;
-  setAuth: (token: string, user: any) => void;
-  logout: () => void;
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
 }
 
-export const useAuthStore = create<AuthStore>()(
-  persist(
-    (set) => ({
-      token: null,
-      user: null,
-      isAuthModalOpen: false,
-      setAuthModalOpen: (isOpen) => set({ isAuthModalOpen: isOpen }),
-      setAuth: (token, user) => set({ token, user }),
-      logout: () => set({ token: null, user: null }),
-    }),
-    {
-      name: 'marketsim-auth',
+interface AuthStore {
+  user: AuthUser | null;
+  isAuthModalOpen: boolean;
+  sessionResolved: boolean;
+  setAuthModalOpen: (isOpen: boolean) => void;
+  setAuth: (user: AuthUser) => void;
+  restoreSession: () => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+let sessionRequest: Promise<void> | null = null;
+
+export const useAuthStore = create<AuthStore>((set) => ({
+  user: null,
+  isAuthModalOpen: false,
+  sessionResolved: false,
+  setAuthModalOpen: (isOpen) => set({ isAuthModalOpen: isOpen }),
+  setAuth: (user) => set({ user, sessionResolved: true }),
+  restoreSession: async () => {
+    if (sessionRequest) return sessionRequest;
+
+    sessionRequest = (async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (!response.ok) {
+          set({ user: null, sessionResolved: true });
+          return;
+        }
+        set({ user: await response.json(), sessionResolved: true });
+      } catch {
+        set({ user: null, sessionResolved: true });
+      } finally {
+        sessionRequest = null;
+      }
+    })();
+
+    return sessionRequest;
+  },
+  logout: async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      set({ user: null, sessionResolved: true, isAuthModalOpen: false });
     }
-  )
-);
+  },
+}));

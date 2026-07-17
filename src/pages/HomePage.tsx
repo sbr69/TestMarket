@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { Monitor, ShoppingBasket, Book, Shirt, Home, Dumbbell, Sparkles, Gamepad2, ChevronRight, ChevronLeft, Clock, Zap, Heart } from 'lucide-react';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useAuthStore } from '../store/authStore';
+import { fetchPublicJson } from '../utils/apiCache';
 
 interface Product {
   id: string;
@@ -92,12 +93,13 @@ export default function HomePage() {
   const addItem = useCartStore(state => state.addItem);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [timeLeft, setTimeLeft] = useState({ hours: 4, minutes: 12, seconds: 39 });
-  const { token } = useAuthStore();
+  const { user } = useAuthStore();
   const { items: wishlistItems, toggleWishlist, fetchWishlist } = useWishlistStore();
+  const wishlistIds = useMemo(() => new Set(wishlistItems.map(item => item.productId)), [wishlistItems]);
 
   useEffect(() => {
-    if (token) fetchWishlist(token);
-  }, [token, fetchWishlist]);
+    if (user) void fetchWishlist(user.id);
+  }, [user, fetchWishlist]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -151,10 +153,11 @@ export default function HomePage() {
       ? `/api/products/search?${params.toString()}`
       : `/api/products/search?limit=12`;
 
-    fetch(fetchUrl)
-      .then(res => res.json())
+    let isCurrent = true;
+    fetchPublicJson<{ products?: Product[] } | Product[]>(fetchUrl)
       .then(data => {
-        if (data.products && Array.isArray(data.products)) {
+        if (!isCurrent) return;
+        if (!Array.isArray(data) && data.products && Array.isArray(data.products)) {
           setProducts(data.products);
         } else if (Array.isArray(data)) {
           setProducts(data);
@@ -164,9 +167,11 @@ export default function HomePage() {
         setLoading(false);
       })
       .catch(err => {
+        if (!isCurrent) return;
         console.error('Failed to fetch products', err);
         setLoading(false);
       });
+    return () => { isCurrent = false; };
   }, [q, category, sort, minPrice, maxPrice, inStock, ratingFilter]);
 
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % CAROUSEL_SLIDES.length);
@@ -184,7 +189,7 @@ export default function HomePage() {
                 className={`absolute inset-0 transition-opacity duration-1000 ${i === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
               >
                 <div className="absolute inset-0 bg-black/40 mix-blend-multiply z-10"></div>
-                <img src={slide.image} alt={slide.title} className="w-full h-full object-cover" />
+                <img src={slide.image} alt={slide.title} className="w-full h-full object-cover" loading={i === 0 ? "eager" : "lazy"} fetchPriority={i === 0 ? "high" : "low"} decoding="async" />
                 <div className="absolute inset-0 z-20 flex flex-col justify-center items-start p-8 sm:p-16 max-w-3xl">
                   <span className="bg-[#F97316] text-white text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-wider">Featured Promotion</span>
                   <h1 className="text-4xl sm:text-6xl font-bold tracking-tight mb-4 text-white font-sans leading-tight shadow-sm">
@@ -267,7 +272,7 @@ export default function HomePage() {
                   <div key={product.id} className="min-w-70 max-w-70 snap-start bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all group">
                     <Link to={`/product/${product.id}`} className="block relative aspect-square bg-gray-50 p-4">
                       {product.image_url ? (
-                        <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" />
+                        <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" loading="lazy" decoding="async" />
                       ) : (
                         <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 font-medium">No Image</div>
                       )}
@@ -276,10 +281,10 @@ export default function HomePage() {
                       </div>
                     </Link>
                     <button
-                      onClick={(e) => { e.preventDefault(); if (token) toggleWishlist(product.id, token); else alert('Please sign in'); }}
+                      onClick={(e) => { e.preventDefault(); if (user) void toggleWishlist(product.id); else alert('Please sign in'); }}
                       className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors"
                     >
-                      <Heart className={`w-4 h-4 ${wishlistItems.some(w => w.productId === product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
+                      <Heart className={`w-4 h-4 ${wishlistIds.has(product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
                     </button>
                     <div className="p-4">
                       <Link to={`/product/${product.id}`} className="hover:text-red-600 transition-colors">
@@ -311,7 +316,7 @@ export default function HomePage() {
                   <div key={product.id} className="group relative flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
                     <Link to={`/product/${product.id}`} className="aspect-4/5 bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden">
                       {product.image_url ? (
-                        <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" />
+                        <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" loading="lazy" decoding="async" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-400">
                           <span className="font-medium text-sm capitalize">{product.category}</span>
@@ -324,10 +329,10 @@ export default function HomePage() {
                       )}
                     </Link>
                     <button
-                      onClick={(e) => { e.preventDefault(); if (token) toggleWishlist(product.id, token); else alert('Please sign in'); }}
+                      onClick={(e) => { e.preventDefault(); if (user) void toggleWishlist(product.id); else alert('Please sign in'); }}
                       className="absolute top-2 right-2 p-2 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors z-10"
                     >
-                      <Heart className={`w-5 h-5 ${wishlistItems.some(w => w.productId === product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
+                      <Heart className={`w-5 h-5 ${wishlistIds.has(product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
                     </button>
 
                     <div className="p-4 flex flex-col grow">
@@ -378,7 +383,7 @@ export default function HomePage() {
           {/* Second Promotional Banner */}
           <section className="relative rounded-2xl overflow-hidden min-h-62.5 flex items-center bg-gray-900">
             <div className="absolute inset-0 opacity-50">
-              <img src="https://images.unsplash.com/photo-1555529771-835f59fc5efe?w=1600&q=80" alt="Tech Accessories" className="w-full h-full object-cover" />
+              <img src="https://images.unsplash.com/photo-1555529771-835f59fc5efe?w=1600&q=80&auto=format&fm=webp" alt="Tech Accessories" className="w-full h-full object-cover" loading="lazy" decoding="async" />
             </div>
             <div className="relative z-10 p-8 sm:p-12 md:w-1/2">
               <h2 className="text-3xl font-bold text-white mb-4">Premium Accessories for Modern Life</h2>
@@ -474,7 +479,7 @@ export default function HomePage() {
                   <div key={product.id} className="group relative flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
                     <Link to={`/product/${product.id}`} className="aspect-4/5 bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden">
                       {product.image_url ? (
-                        <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" />
+                        <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" loading="lazy" decoding="async" />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
                           <span className="font-medium text-sm capitalize">{product.category}</span>
@@ -487,10 +492,10 @@ export default function HomePage() {
                       )}
                     </Link>
                     <button
-                      onClick={(e) => { e.preventDefault(); if (token) toggleWishlist(product.id, token); else alert('Please sign in'); }}
+                      onClick={(e) => { e.preventDefault(); if (user) void toggleWishlist(product.id); else alert('Please sign in'); }}
                       className="absolute top-2 right-2 p-2 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors z-10"
                     >
-                      <Heart className={`w-5 h-5 ${wishlistItems.some(w => w.productId === product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
+                      <Heart className={`w-5 h-5 ${wishlistIds.has(product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
                     </button>
 
                     <div className="p-4 flex flex-col grow">

@@ -1,20 +1,24 @@
-import { useState } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ShoppingCart, Store, User as UserIcon, Search, ChevronDown } from 'lucide-react';
 
 import { useCartStore } from './store/cartStore';
 import { useAuthStore } from './store/authStore';
 
-import HomePage from './pages/HomePage';
-import CartPage from './pages/CartPage';
-import AccountPage from './pages/AccountPage';
-import ProductDetailPage from './pages/ProductDetailPage';
-import CheckoutPage from './pages/CheckoutPage';
-import OAuthConsentPage from './pages/OAuthConsentPage';
 import ToastContainer from './components/ToastContainer';
-import AuthModal from './components/AuthModal';
+
+const HomePage = lazy(() => import('./pages/HomePage'));
+const CartPage = lazy(() => import('./pages/CartPage'));
+const AccountPage = lazy(() => import('./pages/AccountPage'));
+const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
+const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
+const OAuthConsentPage = lazy(() => import('./pages/OAuthConsentPage'));
+const AuthModal = lazy(() => import('./components/AuthModal'));
+
+function RouteFallback() {
+  return <div className="min-h-[24rem]" aria-busy="true" />;
+}
 
 function SearchBar() {
   const [searchParams] = useSearchParams();
@@ -107,22 +111,27 @@ function Navigation({ onOpenAuth }: { onOpenAuth: () => void }) {
 }
 
 export default function App() {
-  const { isAuthModalOpen, setAuthModalOpen } = useAuthStore();
+  const { isAuthModalOpen, setAuthModalOpen, restoreSession } = useAuthStore();
+
+  useEffect(() => {
+    void restoreSession();
+  }, [restoreSession]);
 
   return (
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || 'dummy-client-id'}>
-      <Router>
+    <Router>
         <div className="min-h-screen bg-[#F3F4F6] text-[#111827] font-sans selection:bg-[#F97316] selection:text-white flex flex-col">
           <Navigation onOpenAuth={() => setAuthModalOpen(true)} />
           <main className="flex-1 max-w-360 w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/product/:id" element={<ProductDetailPage />} />
-              <Route path="/cart" element={<CartPage />} />
-              <Route path="/checkout" element={<CheckoutPage />} />
-              <Route path="/account" element={<AccountPage />} />
-              <Route path="/oauth/authorize" element={<OAuthConsentPage />} />
-            </Routes>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/product/:id" element={<ProductDetailPage />} />
+                <Route path="/cart" element={<CartPage />} />
+                <Route path="/checkout" element={<CheckoutPage />} />
+                <Route path="/account" element={<AccountPage />} />
+                <Route path="/oauth/authorize" element={<OAuthConsentPage />} />
+              </Routes>
+            </Suspense>
           </main>
 
           {/* Footer */}
@@ -170,9 +179,12 @@ export default function App() {
           </footer>
 
           <ToastContainer />
-          <AuthModal isOpen={isAuthModalOpen} onClose={() => setAuthModalOpen(false)} />
+          {isAuthModalOpen && (
+            <Suspense fallback={null}>
+              <AuthModal isOpen={isAuthModalOpen} onClose={() => setAuthModalOpen(false)} />
+            </Suspense>
+          )}
         </div>
       </Router>
-    </GoogleOAuthProvider>
   );
 }

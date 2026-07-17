@@ -52,14 +52,14 @@
         },
         "responses": {
           "200": {
-            "description": "Successful response with JWT token"
+            "description": "Successful response; sets an HTTP-only tm_session cookie"
           }
         }
       }
     },
     "/auth/login": {
       "post": {
-        "summary": "Login to get a JWT token",
+        "summary": "Login and set an HTTP-only session cookie",
         "requestBody": {
           "required": true,
           "content": {
@@ -84,7 +84,7 @@
         },
         "responses": {
           "200": {
-            "description": "Successful response with JWT token"
+            "description": "Successful response; sets an HTTP-only tm_session cookie"
           }
         }
       }

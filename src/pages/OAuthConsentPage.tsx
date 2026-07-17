@@ -11,8 +11,11 @@ export default function OAuthConsentPage() {
   const redirectUri = searchParams.get('redirect_uri');
   const responseType = searchParams.get('response_type');
   const state = searchParams.get('state');
+  const scope = searchParams.get('scope') || '';
+  const codeChallenge = searchParams.get('code_challenge') || '';
+  const codeChallengeMethod = searchParams.get('code_challenge_method') || '';
 
-  const [clientInfo, setClientInfo] = useState<{ name: string; redirect_uris: string } | null>(null);
+  const [clientInfo, setClientInfo] = useState<{ name: string; redirect_uris: string; allowed_scopes: string[] } | null>(null);
   const [error, setError] = useState('');
   const [isAuthorizing, setIsAuthorizing] = useState(false);
 
@@ -36,7 +39,7 @@ export default function OAuthConsentPage() {
         return res.json();
       })
       .then(data => {
-        const allowedUris = data.redirect_uris.split(',');
+        const allowedUris = data.redirect_uris.split(',').map((uri: string) => uri.trim());
         if (!allowedUris.includes(redirectUri)) {
           throw new Error('Invalid redirect URI');
         }
@@ -55,7 +58,13 @@ export default function OAuthConsentPage() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ client_id: clientId, redirect_uri: redirectUri })
+        body: JSON.stringify({
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          response_type: responseType,
+          scope,
+          ...(codeChallenge ? { code_challenge: codeChallenge, code_challenge_method: codeChallengeMethod || 'S256' } : {})
+        })
       });
       const data = await res.json();
 
@@ -64,11 +73,10 @@ export default function OAuthConsentPage() {
       }
 
       // Redirect back to the client with the code and state
-      let url = `${redirectUri}?code=${data.code}`;
-      if (state) {
-        url += `&state=${encodeURIComponent(state)}`;
-      }
-      window.location.href = url;
+      const url = new URL(redirectUri);
+      url.searchParams.set('code', data.code);
+      if (state) url.searchParams.set('state', state);
+      window.location.href = url.toString();
 
     } catch (err: any) {
       setError(err.message);
@@ -77,11 +85,10 @@ export default function OAuthConsentPage() {
   };
 
   const handleDeny = () => {
-    let url = `${redirectUri}?error=access_denied`;
-    if (state) {
-      url += `&state=${encodeURIComponent(state)}`;
-    }
-    window.location.href = url;
+    const url = new URL(redirectUri!);
+    url.searchParams.set('error', 'access_denied');
+    if (state) url.searchParams.set('state', state);
+    window.location.href = url.toString();
   };
 
   if (error) {
@@ -129,18 +136,12 @@ export default function OAuthConsentPage() {
         </p>
 
         <div className="space-y-4 mb-8 border-t border-b border-gray-100 py-4">
-          <div className="flex items-start">
-            <span className="text-green-500 mr-3 mt-0.5">✓</span>
-            <p className="text-sm text-gray-700">View your account profile and email address.</p>
-          </div>
-          <div className="flex items-start">
-            <span className="text-green-500 mr-3 mt-0.5">✓</span>
-            <p className="text-sm text-gray-700">View and manage your shopping cart.</p>
-          </div>
-          <div className="flex items-start">
-            <span className="text-green-500 mr-3 mt-0.5">✓</span>
-            <p className="text-sm text-gray-700">Place orders on your behalf.</p>
-          </div>
+          {(scope ? scope.split(/\s+/) : clientInfo.allowed_scopes).map((requestedScope) => (
+            <div className="flex items-start" key={requestedScope}>
+              <span className="text-green-500 mr-3 mt-0.5">✓</span>
+              <p className="text-sm text-gray-700">{requestedScope === 'profile' ? 'View your account profile and email address.' : requestedScope === 'cart:read' ? 'View your shopping cart.' : requestedScope === 'cart:write' ? 'Manage your shopping cart.' : requestedScope === 'checkout:prepare' ? 'Prepare a checkout on your behalf.' : requestedScope === 'checkout:confirm' ? 'Confirm a checkout after payment.' : requestedScope === 'orders:read' ? 'View your order history.' : requestedScope}</p>
+            </div>
+          ))}
         </div>
 
         <div className="flex flex-col gap-3">

@@ -11,6 +11,7 @@ import { OAuth2Client } from 'google-auth-library';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { Keypair } from '@stellar/stellar-sdk';
+import { PaymentVerificationUnavailableError, stellarHorizonVerifier } from './server/stellarHorizon';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma = globalForPrisma.prisma ?? new PrismaClient();
@@ -920,24 +921,9 @@ const PORT = Number(process.env.PORT) || 3000;
         if (stellarTxHash.startsWith('sim_tx_')) {
           if (isProduction) return res.status(400).json({ error: 'Simulated payments are disabled in production', code: 'INVALID_TRANSACTION', status: 400 });
         } else {
-          let response: Response | undefined;
-          let operations: any[] = [];
-          for (let attempt = 0; attempt < 3; attempt += 1) {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 4_000);
-            try {
-              response = await fetch(`https://horizon-testnet.stellar.org/transactions/${stellarTxHash}/operations`, { signal: controller.signal });
-              if (response.ok) {
-                const data = await response.json();
-                operations = data?._embedded?.records || [];
-                break;
-              }
-            } finally {
-              clearTimeout(timeout);
-            }
-            if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 750));
-          }
-          if (!response?.ok) return res.status(400).json({ error: 'Stellar transaction was not found', code: 'INVALID_TRANSACTION', status: 400 });
+          const horizonLookup = await stellarHorizonVerifier.fetchOperations(stellarTxHash);
+          if (!horizonLookup.found) return res.status(400).json({ error: 'Stellar transaction was not found', code: 'INVALID_TRANSACTION', status: 400 });
+          const operations = horizonLookup.operations;
           const expectedStroops = Math.round(total * 10_000_000);
           const validPayment = operations.some((operation: any) =>
             operation.type === 'payment' &&
@@ -987,6 +973,10 @@ const PORT = Number(process.env.PORT) || 3000;
       invalidateCache('products:batch:');
       res.status(201).json({ success: true, order_id: order.id });
     } catch (err: any) {
+      if (err instanceof PaymentVerificationUnavailableError) {
+        res.set('Retry-After', String(err.retryAfterSeconds));
+        return res.status(503).json({ error: 'Payment verification is temporarily unavailable. Please retry shortly.', code: 'PAYMENT_VERIFICATION_UNAVAILABLE', status: 503 });
+      }
       if (err?.message === 'INSUFFICIENT_STOCK') return res.status(409).json({ error: 'One or more products no longer have enough stock', code: 'INSUFFICIENT_STOCK', status: 409 });
       if (err?.code === 'P2002' && err?.meta?.target?.includes('stellarTxHash')) return res.status(409).json({ error: 'This Stellar payment has already been used', code: 'PAYMENT_ALREADY_USED', status: 409 });
       console.error(err);

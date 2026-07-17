@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useToastStore } from './toastStore';
 
 interface WishlistItem {
   productId: string;
@@ -75,6 +76,7 @@ export const useWishlistStore = create<WishlistState>((set, get) => ({
     } catch {
       // Revert a failed optimistic update to the exact prior state.
       set({ items: previousItems });
+      useToastStore.getState().addToast('Wishlist update failed. Your previous selection was restored.', 'error');
     } finally {
       const { [productId]: _, ...pending } = get().pending;
       set({ pending });

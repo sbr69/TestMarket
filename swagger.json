@@ -365,8 +365,20 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Successful response"
+          "201": {
+            "description": "Order created successfully"
+          },
+          "503": {
+            "description": "Stellar payment verification is temporarily unavailable. Clients should retry after the Retry-After response header.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds before retrying payment verification.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
           }
         }
       }

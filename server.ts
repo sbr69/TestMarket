@@ -1,4 +1,7 @@
-import 'dotenv/config';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
+dotenv.config({ path: '.env.local', override: true });
 import express from 'express';
 import crypto from 'crypto';
 import path from 'path';
@@ -10,7 +13,6 @@ import fs from 'fs';
 import { OAuth2Client } from 'google-auth-library';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { Keypair } from '@stellar/stellar-sdk';
 import { PaymentVerificationUnavailableError, stellarHorizonVerifier } from './server/stellarHorizon';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
@@ -21,6 +23,9 @@ const isProduction = process.env.NODE_ENV === 'production';
 const JWT_SECRET = process.env.JWT_SECRET || (!isProduction ? 'local-development-secret-change-me' : undefined);
 if (!JWT_SECRET) throw new Error('JWT_SECRET must be configured in production');
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+// The Stellar SDK's CommonJS entrypoint is incompatible with Node 24's ESM
+// dependency rules on Vercel. Load its ESM entrypoint only for wallet auth.
+const loadStellarSdk = () => import('@stellar/stellar-sdk');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -198,6 +203,7 @@ const PORT = Number(process.env.PORT) || 3000;
   app.post('/api/auth/stellar/challenge', authRateLimit, async (req, res) => {
     const publicKey = getString(req.body?.publicKey, 56);
     try {
+      const { Keypair } = await loadStellarSdk();
       Keypair.fromPublicKey(publicKey);
     } catch {
       return res.status(400).json({ error: 'Invalid Stellar public key' });
@@ -218,6 +224,7 @@ const PORT = Number(process.env.PORT) || 3000;
   });
   app.post('/api/auth/stellar', authRateLimit, async (req, res) => {
     try {
+      const { Keypair } = await loadStellarSdk();
       const publicKey = getString(req.body?.publicKey, 56);
       const challenge = getString(req.body?.challenge, 2_000);
       const signature = getString(req.body?.signature, 512);

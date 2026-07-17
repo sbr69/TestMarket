@@ -41,6 +41,9 @@ supabase/.temp/
 supabase/.branches/
 .vercel/
 
+# Local exports created while migrating Supabase projects
+migration-backups/
+
 # IDE settings
 .idea/
 .vscode/

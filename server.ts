@@ -96,7 +96,7 @@ const PORT = Number(process.env.PORT) || 3000;
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", 'https://accounts.google.com', 'https://albedo.link'],
         frameSrc: ["'self'", 'https://accounts.google.com', 'https://albedo.link'],
-        imgSrc: ["'self'", 'data:', 'https://images.unsplash.com'],
+        imgSrc: ["'self'", 'data:', 'https://images.unsplash.com', 'https://m.media-amazon.com', 'https://mughais.com'],
         connectSrc: ["'self'", 'https://accounts.google.com', 'https://horizon-testnet.stellar.org'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],

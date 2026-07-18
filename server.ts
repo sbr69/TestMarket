@@ -57,6 +57,10 @@ const PORT = Number(process.env.PORT) || 3000;
   }));
   app.use(morgan(isProduction ? 'combined' : 'dev'));
   app.use(express.json({ limit: '32kb' }));
+  // OAuth token and revocation requests use application/x-www-form-urlencoded
+  // by specification. Without this parser, dynamic OAuth clients always look
+  // unauthenticated at these endpoints even when their credentials are valid.
+  app.use(express.urlencoded({ extended: false, limit: '32kb' }));
   app.use((error: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (error instanceof SyntaxError && 'body' in error) {
       return res.status(400).json({ error: 'Invalid JSON request body', code: 'BAD_REQUEST', status: 400 });

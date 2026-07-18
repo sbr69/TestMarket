@@ -1345,10 +1345,10 @@ const PORT = Number(process.env.PORT) || 3000;
         where: { isActive: true, ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}) },
         take: limit,
         orderBy: { createdAt: 'desc' },
-        select: { id: true, name: true, brand: true, price: true, mrp: true, stock: true, rating: true, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
+        select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, stock: true, rating: true, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
       });
       setPublicCache(res, 20, 60);
-      res.json({ products: products.map((product) => ({ product_id: product.id, name: product.name, brand: product.brand, price: product.price, currency: 'USD', stock: product.stock, rating: product.rating, image_url: product.images[0]?.url || null })) });
+      res.json({ products: products.map((product) => ({ product_id: product.id, name: product.name, brand: product.brand, description: product.description, price: product.price, currency: 'USD', stock: product.stock, rating: product.rating, image_url: product.images[0]?.url || null })) });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'INTERNAL_ERROR' });

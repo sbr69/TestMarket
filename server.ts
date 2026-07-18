@@ -49,7 +49,10 @@ async function verifyStellarTestnetPayment(stellarTxHash: string, expectedStroop
       const events = StellarSdk.humanizeEvents((transaction.events?.contractEventsXdr || []).flat());
       return events.some((event: any) => {
         if (event.contractId !== nativeXlmContractId || event.type !== 'contract') return false;
-        if (!Array.isArray(event.topics) || event.topics.length !== 3 || event.topics[0] !== 'transfer') return false;
+        // Native SAC transfer events have four topics:
+        // ["transfer", source, destination, "native"].  Requiring three
+        // topics rejected every valid payment emitted by the C... smart wallet.
+        if (!Array.isArray(event.topics) || event.topics.length !== 4 || event.topics[0] !== 'transfer' || event.topics[3] !== 'native') return false;
         if (String(event.topics[2]) !== TESTNET_MERCHANT_STELLAR_ADDRESS) return false;
         try {
           return BigInt(event.data) === BigInt(expectedStroops);
@@ -1385,13 +1388,16 @@ const PORT = Number(process.env.PORT) || 3000;
       const checkoutId = getString(req.body?.checkout_id, 64);
       const paymentMethod = getString(req.body?.payment_method, 160);
       const intent = await (prisma as any).agentCheckoutIntent.findFirst({ where: { id: checkoutId, clientId: req.user.clientId, userId: req.user.userId }, select: { id: true, items: true, deliveryAddress: true, total: true, expiresAt: true, confirmedAt: true } });
-      if (!intent || intent.confirmedAt || intent.expiresAt < new Date()) return res.status(400).json({ error: 'Checkout intent is invalid or expired', code: 'INVALID_CHECKOUT' });
+      if (!intent || intent.confirmedAt) return res.status(400).json({ error: 'Checkout intent is invalid or has already been confirmed', code: 'INVALID_CHECKOUT' });
       let stellarTxHash: string | undefined;
       const stellarMatch = /^Stellar Wallet \(Tx: ([a-fA-F0-9]{64}|sim_tx_[A-Za-z0-9_-]{1,80})\)$/.exec(paymentMethod);
       if (!stellarMatch) return res.status(400).json({ error: 'A Stellar testnet transaction reference is required', code: 'INVALID_TRANSACTION' });
       if (stellarMatch) {
         stellarTxHash = stellarMatch[1];
         if (stellarTxHash.startsWith('sim_tx_')) {
+          // A simulated payment has no irreversible settlement, so its quote
+          // expiry is still enforced in development.
+          if (intent.expiresAt < new Date()) return res.status(400).json({ error: 'Checkout intent is expired', code: 'INVALID_CHECKOUT' });
           if (isProduction) return res.status(400).json({ error: 'Simulated payments are disabled in production', code: 'INVALID_TRANSACTION' });
         } else {
           const expectedStroops = Math.round(intent.total * 10_000_000);
@@ -1401,7 +1407,10 @@ const PORT = Number(process.env.PORT) || 3000;
       }
       const items = JSON.parse(intent.items) as Array<{ productId: string; quantity: number; priceAtPurchase: number }>;
       const order = await prisma.$transaction(async (tx) => {
-        const claimed = await (tx as any).agentCheckoutIntent.updateMany({ where: { id: intent.id, confirmedAt: null, expiresAt: { gte: new Date() } }, data: { confirmedAt: new Date() } });
+        // A real Stellar payment was independently verified above. A delayed
+        // callback must settle that paid reservation exactly once, even if its
+        // normal checkout window elapsed while the payment was finalizing.
+        const claimed = await (tx as any).agentCheckoutIntent.updateMany({ where: { id: intent.id, confirmedAt: null }, data: { confirmedAt: new Date() } });
         if (claimed.count !== 1) throw new Error('INVALID_CHECKOUT');
         let userAddress = await tx.address.findFirst({ where: { userId: req.user.userId }, select: { id: true } });
         if (!userAddress) userAddress = await tx.address.create({ data: { userId: req.user.userId, fullName: 'User', phone: '0000000000', line1: intent.deliveryAddress, city: 'Unknown', state: 'Unknown', pincode: '000000', isDefault: true }, select: { id: true } });

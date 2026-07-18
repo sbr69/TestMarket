@@ -51,6 +51,10 @@ export default function OAuthConsentPage() {
   }, [clientId, redirectUri, responseType, user, sessionResolved]);
 
   const handleAuthorize = async () => {
+    if (!clientId || !redirectUri || responseType !== 'code') {
+      setError('Invalid OAuth parameters.');
+      return;
+    }
     setIsAuthorizing(true);
     try {
       const res = await fetch('/api/oauth/authorize', {
@@ -85,7 +89,11 @@ export default function OAuthConsentPage() {
   };
 
   const handleDeny = () => {
-    const url = new URL(redirectUri!);
+    if (!redirectUri) {
+      setError('Invalid OAuth parameters.');
+      return;
+    }
+    const url = new URL(redirectUri);
     url.searchParams.set('error', 'access_denied');
     if (state) url.searchParams.set('state', state);
     window.location.href = url.toString();
@@ -133,6 +141,9 @@ export default function OAuthConsentPage() {
         </h2>
         <p className="text-center text-gray-600 text-sm mb-8">
           Signed in as <span className="font-bold text-gray-900">{user.email}</span>
+        </p>
+        <p className="text-center text-gray-500 text-xs mb-6 break-all">
+          Access will return to <span className="font-semibold text-gray-700">{new URL(redirectUri || window.location.origin).origin}</span>
         </p>
 
         <div className="space-y-4 mb-8 border-t border-b border-gray-100 py-4">

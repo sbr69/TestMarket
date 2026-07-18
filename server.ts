@@ -22,6 +22,7 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 const isProduction = process.env.NODE_ENV === 'production';
 const JWT_SECRET = process.env.JWT_SECRET || (!isProduction ? 'local-development-secret-change-me' : undefined);
 if (!JWT_SECRET) throw new Error('JWT_SECRET must be configured in production');
+const TESTNET_MERCHANT_STELLAR_ADDRESS = process.env.TESTNET_MERCHANT_STELLAR_ADDRESS || 'GAS7MXJI3CIRUPZTA75VBMJXAJGUYCLBPHCTZQWGC7OTVSAKZN553WYX';
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 // The Stellar SDK's CommonJS entrypoint is incompatible with Node 24's ESM
 // dependency rules on Vercel. Load its ESM entrypoint only for wallet auth.
@@ -445,6 +446,12 @@ const PORT = Number(process.env.PORT) || 3000;
         checkout_prepare_endpoint: ['checkout:prepare'],
         checkout_confirm_endpoint: ['checkout:confirm'],
         orders_endpoint: ['orders:read'],
+      },
+      settlement: {
+        network: 'testnet',
+        asset: 'XLM',
+        merchant_stellar_address: TESTNET_MERCHANT_STELLAR_ADDRESS,
+        confirmation: 'Submit the Stellar testnet transaction hash to checkout_confirm_endpoint.',
       },
     });
   });
@@ -1096,7 +1103,7 @@ const PORT = Number(process.env.PORT) || 3000;
           const validPayment = operations.some((operation: any) =>
             operation.type === 'payment' &&
             operation.asset_type === 'native' &&
-            operation.to === 'GAS7MXJI3CIRUPZTA75VBMJXAJGUYCLBPHCTZQWGC7OTVSAKZN553WYX' &&
+            operation.to === TESTNET_MERCHANT_STELLAR_ADDRESS &&
             operation.transaction_successful === true &&
             Math.round(Number(operation.amount) * 10_000_000) === expectedStroops,
           );
@@ -1291,7 +1298,7 @@ const PORT = Number(process.env.PORT) || 3000;
         data: { clientId: req.user.clientId, userId: req.user.userId, items: JSON.stringify(quote.items.map(({ name, ...item }) => item)), deliveryAddress, total: quote.total, expiresAt },
         select: { id: true },
       });
-      return res.status(201).json({ checkout_id: intent.id, currency: 'USD', ...quote, expires_at: expiresAt.toISOString(), payment_methods: ['Card', 'Stellar Wallet'] });
+      return res.status(201).json({ checkout_id: intent.id, currency: 'XLM', amount_xlm: quote.total.toFixed(7), merchant_stellar_address: TESTNET_MERCHANT_STELLAR_ADDRESS, network: 'testnet', items: quote.items, subtotal_xlm: quote.subtotal, shipping_xlm: quote.shipping, expires_at: expiresAt.toISOString(), payment_methods: ['Stellar Wallet'] });
     } catch (err: any) {
       const status = err?.message === 'INSUFFICIENT_STOCK' ? 409 : 400;
       const code = ['EMPTY_CART', 'BAD_REQUEST', 'PRODUCT_UNAVAILABLE', 'INSUFFICIENT_STOCK'].includes(err?.message) ? err.message : 'INTERNAL_ERROR';
@@ -1303,12 +1310,12 @@ const PORT = Number(process.env.PORT) || 3000;
   app.post('/api/agent/commerce/v1/checkout/confirm', authenticateToken, requireOAuthScopes('checkout:confirm'), writeRateLimit, async (req: any, res) => {
     try {
       const checkoutId = getString(req.body?.checkout_id, 64);
-      const paymentMethod = getString(req.body?.payment_method, 160) || 'Card';
+      const paymentMethod = getString(req.body?.payment_method, 160);
       const intent = await (prisma as any).agentCheckoutIntent.findFirst({ where: { id: checkoutId, clientId: req.user.clientId, userId: req.user.userId }, select: { id: true, items: true, deliveryAddress: true, total: true, expiresAt: true, confirmedAt: true } });
       if (!intent || intent.confirmedAt || intent.expiresAt < new Date()) return res.status(400).json({ error: 'Checkout intent is invalid or expired', code: 'INVALID_CHECKOUT' });
       let stellarTxHash: string | undefined;
       const stellarMatch = /^Stellar Wallet \(Tx: ([a-fA-F0-9]{64}|sim_tx_[A-Za-z0-9_-]{1,80})\)$/.exec(paymentMethod);
-      if (paymentMethod.startsWith('Stellar Wallet') && !stellarMatch) return res.status(400).json({ error: 'Invalid Stellar transaction reference', code: 'INVALID_TRANSACTION' });
+      if (!stellarMatch) return res.status(400).json({ error: 'A Stellar testnet transaction reference is required', code: 'INVALID_TRANSACTION' });
       if (stellarMatch) {
         stellarTxHash = stellarMatch[1];
         if (stellarTxHash.startsWith('sim_tx_')) {
@@ -1317,7 +1324,7 @@ const PORT = Number(process.env.PORT) || 3000;
           const horizonLookup = await stellarHorizonVerifier.fetchOperations(stellarTxHash);
           if (!horizonLookup.found) return res.status(400).json({ error: 'Stellar transaction was not found', code: 'INVALID_TRANSACTION' });
           const expectedStroops = Math.round(intent.total * 10_000_000);
-          const validPayment = horizonLookup.operations.some((operation: any) => operation.type === 'payment' && operation.asset_type === 'native' && operation.to === 'GAS7MXJI3CIRUPZTA75VBMJXAJGUYCLBPHCTZQWGC7OTVSAKZN553WYX' && operation.transaction_successful === true && Math.round(Number(operation.amount) * 10_000_000) === expectedStroops);
+          const validPayment = horizonLookup.operations.some((operation: any) => operation.type === 'payment' && operation.asset_type === 'native' && operation.to === TESTNET_MERCHANT_STELLAR_ADDRESS && operation.transaction_successful === true && Math.round(Number(operation.amount) * 10_000_000) === expectedStroops);
           if (!validPayment) return res.status(400).json({ error: 'The Stellar payment does not match this order', code: 'INVALID_TRANSACTION_PAYMENT' });
         }
       }

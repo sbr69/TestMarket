@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
 import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
 import { X } from 'lucide-react';
-import { StellarWalletsKit } from '../utils/stellarWallet';
+import { connectStellarAuthWallet, signStellarMessage } from '../utils/stellarWallet';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -47,7 +47,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleStellarLogin = async () => {
     try {
       setLoading(true);
-      const { address } = await StellarWalletsKit.authModal();
+      const { address } = await connectStellarAuthWallet();
 
       const challengeResponse = await fetch('/api/auth/stellar/challenge', {
         method: 'POST',
@@ -59,10 +59,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         throw new Error(challengeData.error || 'Unable to create a wallet sign-in challenge');
       }
 
-      const { signedMessage } = await StellarWalletsKit.signMessage(challengeData.challenge, {
-        address,
-        networkPassphrase: 'Test SDF Network ; September 2015'
-      });
+      const { signedMessage } = await signStellarMessage(challengeData.challenge, address);
 
       const authRes = await fetch('/api/auth/stellar', {
         method: 'POST',

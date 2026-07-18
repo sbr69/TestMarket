@@ -5,7 +5,7 @@ import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
 import { ShieldCheck, Truck, CreditCard, CheckCircle2, ChevronRight, FileText, ShoppingBag } from 'lucide-react';
-import { StellarWalletsKit } from '../utils/stellarWallet';
+import { connectStellarWallet, signStellarTransaction } from '../utils/stellarWallet';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { fetchPublicJson } from '../utils/apiCache';
 
@@ -66,7 +66,7 @@ export default function CheckoutPage() {
   const connectWallet = async () => {
     try {
       setWalletConnecting(true);
-      const { address } = await StellarWalletsKit.authModal();
+      const { address } = await connectStellarWallet();
       setWalletAddress(address);
       setWalletType('Stellar Wallet');
       addToast('Wallet connected!', 'success');
@@ -211,10 +211,8 @@ export default function CheckoutPage() {
             .setTimeout(120)
             .build();
 
-          // Sign with kit
-          const { signedTxXdr } = await StellarWalletsKit.signTransaction(transaction.toXDR(), {
-            networkPassphrase: StellarSdk.Networks.TESTNET
-          });
+          // Sign with Freighter
+          const { signedTxXdr } = await signStellarTransaction(transaction.toXDR(), walletAddress);
 
           // Submit
           const transactionToSubmit = StellarSdk.TransactionBuilder.fromXDR(signedTxXdr, StellarSdk.Networks.TESTNET);

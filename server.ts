@@ -14,6 +14,7 @@ import { OAuth2Client } from 'google-auth-library';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { PaymentVerificationUnavailableError, stellarHorizonVerifier } from './server/stellarHorizon';
+import { assertCheckoutClaimed, validateCheckoutConfirmation } from './server/agentCheckoutPolicy';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma = globalForPrisma.prisma ?? new PrismaClient();
@@ -1351,7 +1352,9 @@ const PORT = Number(process.env.PORT) || 3000;
         select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, stock: true, rating: true, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
       });
       setPublicCache(res, 20, 60);
-      res.json({ products: products.map((product) => ({ product_id: product.id, name: product.name, brand: product.brand, description: product.description, price: product.price, currency: 'USD', stock: product.stock, rating: product.rating, image_url: product.images[0]?.url || null })) });
+      res.json({
+        products: products.map((product) => ({ product_id: product.id, name: product.name, brand: product.brand, description: product.description, price: product.price, currency: 'USD', stock: product.stock, rating: product.rating, image_url: product.images[0]?.url || null })),
+      });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'INTERNAL_ERROR' });
@@ -1395,9 +1398,8 @@ const PORT = Number(process.env.PORT) || 3000;
       if (stellarMatch) {
         stellarTxHash = stellarMatch[1];
         if (stellarTxHash.startsWith('sim_tx_')) {
-          // A simulated payment has no irreversible settlement, so its quote
-          // expiry is still enforced in development.
-          if (intent.expiresAt < new Date()) return res.status(400).json({ error: 'Checkout intent is expired', code: 'INVALID_CHECKOUT' });
+          const eligibility = validateCheckoutConfirmation(intent, { isSimulatedPayment: true });
+          if (!eligibility.ok) return res.status(400).json({ error: 'Checkout intent is expired', code: eligibility.code });
           if (isProduction) return res.status(400).json({ error: 'Simulated payments are disabled in production', code: 'INVALID_TRANSACTION' });
         } else {
           const expectedStroops = Math.round(intent.total * 10_000_000);
@@ -1411,7 +1413,7 @@ const PORT = Number(process.env.PORT) || 3000;
         // callback must settle that paid reservation exactly once, even if its
         // normal checkout window elapsed while the payment was finalizing.
         const claimed = await (tx as any).agentCheckoutIntent.updateMany({ where: { id: intent.id, confirmedAt: null }, data: { confirmedAt: new Date() } });
-        if (claimed.count !== 1) throw new Error('INVALID_CHECKOUT');
+        assertCheckoutClaimed(claimed.count);
         let userAddress = await tx.address.findFirst({ where: { userId: req.user.userId }, select: { id: true } });
         if (!userAddress) userAddress = await tx.address.create({ data: { userId: req.user.userId, fullName: 'User', phone: '0000000000', line1: intent.deliveryAddress, city: 'Unknown', state: 'Unknown', pincode: '000000', isDefault: true }, select: { id: true } });
         for (const item of items) {

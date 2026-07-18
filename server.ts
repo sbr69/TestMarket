@@ -28,6 +28,57 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 // dependency rules on Vercel. Load its ESM entrypoint only for wallet auth.
 const loadStellarSdk = () => import('@stellar/stellar-sdk');
 
+/**
+ * Verifies a payment independently of the wallet implementation. Classic
+ * wallets produce a Horizon `payment` operation; the agent's C... smart
+ * wallet produces the native Stellar Asset Contract's canonical `transfer`
+ * event. The merchant must accept either, but never trust a client-provided
+ * transaction hash without checking the final on-chain result.
+ */
+async function verifyStellarTestnetPayment(stellarTxHash: string, expectedStroops: number): Promise<boolean> {
+  let sorobanReadSucceeded = false;
+
+  try {
+    const StellarSdk = await loadStellarSdk();
+    const rpcServer = new StellarSdk.rpc.Server(process.env.STELLAR_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org');
+    const transaction = await rpcServer.getTransaction(stellarTxHash);
+    sorobanReadSucceeded = true;
+
+    if (transaction.status === 'SUCCESS') {
+      const nativeXlmContractId = StellarSdk.Asset.native().contractId(StellarSdk.Networks.TESTNET);
+      const events = StellarSdk.humanizeEvents((transaction.events?.contractEventsXdr || []).flat());
+      return events.some((event: any) => {
+        if (event.contractId !== nativeXlmContractId || event.type !== 'contract') return false;
+        if (!Array.isArray(event.topics) || event.topics.length !== 3 || event.topics[0] !== 'transfer') return false;
+        if (String(event.topics[2]) !== TESTNET_MERCHANT_STELLAR_ADDRESS) return false;
+        try {
+          return BigInt(event.data) === BigInt(expectedStroops);
+        } catch {
+          return false;
+        }
+      });
+    }
+  } catch {
+    // Horizon remains a valid verification source for classic account payments.
+    // If neither service can verify a Soroban payment, the request is retriable.
+  }
+
+  const horizonLookup = await stellarHorizonVerifier.fetchOperations(stellarTxHash);
+  if (!horizonLookup.found) return false;
+  const operations = horizonLookup.operations as any[];
+  const hasClassicPayment = operations.some((operation) => operation.type === 'payment');
+  const validClassicPayment = operations.some((operation) =>
+    operation.type === 'payment' &&
+    operation.asset_type === 'native' &&
+    operation.to === TESTNET_MERCHANT_STELLAR_ADDRESS &&
+    operation.transaction_successful === true &&
+    Math.round(Number(operation.amount) * 10_000_000) === expectedStroops,
+  );
+  if (validClassicPayment || hasClassicPayment) return validClassicPayment;
+  if (!sorobanReadSucceeded) throw new PaymentVerificationUnavailableError(3);
+  return false;
+}
+
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -503,12 +554,12 @@ const PORT = Number(process.env.PORT) || 3000;
 
   app.post(['/oauth/register', '/api/oauth/register'], authRateLimit, async (req, res) => {
     try {
-      const redirectUris = Array.isArray(req.body?.redirect_uris) ? [...new Set(req.body.redirect_uris.map((uri: unknown) => getString(uri, 2_000)).filter(Boolean))] : [];
+    const redirectUris = Array.isArray(req.body?.redirect_uris) ? [...new Set(req.body.redirect_uris.map((uri: unknown) => getString(uri, 2_000)).filter(Boolean))] : [];
       const name = getString(req.body?.client_name, 160) || 'Dynamic OAuth Client';
       const authMethod = getString(req.body?.token_endpoint_auth_method, 64) || 'client_secret_post';
       const requested = scopeList(req.body?.scope);
       const scopes = requested.length ? requested : DEFAULT_OAUTH_SCOPES;
-      if (!redirectUris.length || redirectUris.length > 10 || !redirectUris.every(isSafeRedirectUri)) {
+    if (!redirectUris.length || redirectUris.length > 10 || !redirectUris.every((uri) => typeof uri === 'string' && isSafeRedirectUri(uri))) {
         return oauthError(res, 400, 'invalid_client_metadata', 'redirect_uris must contain one to ten exact HTTPS or loopback callback URLs');
       }
       if (!['client_secret_post', 'none'].includes(authMethod) || !scopes.every((scope) => (OAUTH_SCOPES as readonly string[]).includes(scope))) {
@@ -1127,17 +1178,8 @@ const PORT = Number(process.env.PORT) || 3000;
         if (stellarTxHash.startsWith('sim_tx_')) {
           if (isProduction) return res.status(400).json({ error: 'Simulated payments are disabled in production', code: 'INVALID_TRANSACTION', status: 400 });
         } else {
-          const horizonLookup = await stellarHorizonVerifier.fetchOperations(stellarTxHash);
-          if (!horizonLookup.found) return res.status(400).json({ error: 'Stellar transaction was not found', code: 'INVALID_TRANSACTION', status: 400 });
-          const operations = horizonLookup.operations;
           const expectedStroops = Math.round(total * 10_000_000);
-          const validPayment = operations.some((operation: any) =>
-            operation.type === 'payment' &&
-            operation.asset_type === 'native' &&
-            operation.to === TESTNET_MERCHANT_STELLAR_ADDRESS &&
-            operation.transaction_successful === true &&
-            Math.round(Number(operation.amount) * 10_000_000) === expectedStroops,
-          );
+          const validPayment = await verifyStellarTestnetPayment(stellarTxHash, expectedStroops);
           if (!validPayment) return res.status(400).json({ error: 'The Stellar payment does not match this order', code: 'INVALID_TRANSACTION_PAYMENT', status: 400 });
         }
       }
@@ -1352,10 +1394,8 @@ const PORT = Number(process.env.PORT) || 3000;
         if (stellarTxHash.startsWith('sim_tx_')) {
           if (isProduction) return res.status(400).json({ error: 'Simulated payments are disabled in production', code: 'INVALID_TRANSACTION' });
         } else {
-          const horizonLookup = await stellarHorizonVerifier.fetchOperations(stellarTxHash);
-          if (!horizonLookup.found) return res.status(400).json({ error: 'Stellar transaction was not found', code: 'INVALID_TRANSACTION' });
           const expectedStroops = Math.round(intent.total * 10_000_000);
-          const validPayment = horizonLookup.operations.some((operation: any) => operation.type === 'payment' && operation.asset_type === 'native' && operation.to === TESTNET_MERCHANT_STELLAR_ADDRESS && operation.transaction_successful === true && Math.round(Number(operation.amount) * 10_000_000) === expectedStroops);
+          const validPayment = await verifyStellarTestnetPayment(stellarTxHash, expectedStroops);
           if (!validPayment) return res.status(400).json({ error: 'The Stellar payment does not match this order', code: 'INVALID_TRANSACTION_PAYMENT' });
         }
       }

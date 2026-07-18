@@ -22,6 +22,7 @@
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "bcryptjs": "^3.0.3",
+    "buffer": "^6.0.3",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
     "express": "^4.22.2",
@@ -41,6 +42,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@rollup/plugin-inject": "^5.0.5",
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^4.17.25",
     "@types/jsonwebtoken": "^9.0.10",

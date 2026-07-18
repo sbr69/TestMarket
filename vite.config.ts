@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import inject from '@rollup/plugin-inject';
 import path from 'path';
 import {defineConfig} from 'vite';
 
@@ -9,11 +10,21 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        // Force Vite to use the installed browser Buffer package instead of
+        // treating Node's `buffer` builtin as an empty browser external.
+        buffer: 'buffer/',
       },
     },
     build: {
       chunkSizeWarningLimit: 500,
       rollupOptions: {
+        // Stellar Wallets Kit includes browser libraries that use Buffer as a
+        // global. Inject the browser implementation into those dependencies.
+        plugins: [
+          inject({
+            Buffer: ['buffer', 'Buffer'],
+          }),
+        ],
         output: {
           manualChunks(id) {
             // Keep the initial route lean. Wallet SDKs are only needed by the

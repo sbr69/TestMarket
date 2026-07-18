@@ -1,0 +1,11 @@
+# Local secrets must never override Vercel's configured deployment variables.
+.env
+.env.local
+.env.*
+!.env.example
+
+# Local-only artifacts are rebuilt by Vercel.
+node_modules
+dist
+server-dist
+.vercel

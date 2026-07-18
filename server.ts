@@ -35,6 +35,11 @@ const PORT = Number(process.env.PORT) || 3000;
   app.set('trust proxy', 1);
   app.use(helmet({
     crossOriginEmbedderPolicy: false,
+    // Google Identity Services needs the browser to retain the local HTTP
+    // referrer during development and to communicate with its sign-in popup.
+    // See https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+    referrerPolicy: { policy: 'no-referrer-when-downgrade' },
     contentSecurityPolicy: isProduction ? {
       directives: {
         defaultSrc: ["'self'"],
@@ -357,6 +362,28 @@ const PORT = Number(process.env.PORT) || 3000;
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
+    }
+  });
+
+  // Public browser-session probe: a signed-out visitor is a valid state, not
+  // an authentication error. Keep /api/auth/me protected for API clients.
+  app.get('/api/auth/session', async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    const token = getCookie(req, 'tm_session');
+    if (!token) return res.json({ user: null });
+
+    try {
+      const session = jwt.verify(token, JWT_SECRET) as { userId?: string };
+      if (!session.userId) throw new Error('Invalid browser session');
+      const user = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { id: true, name: true, email: true, phone: true },
+      });
+      if (!user) throw new Error('Session user not found');
+      return res.json({ user: publicUser(user) });
+    } catch {
+      res.clearCookie('tm_session', { httpOnly: true, sameSite: 'lax', secure: isProduction, path: '/' });
+      return res.json({ user: null });
     }
   });
 

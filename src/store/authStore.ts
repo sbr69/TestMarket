@@ -30,12 +30,13 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
     sessionRequest = (async () => {
       try {
-        const response = await fetch('/api/auth/me');
+        const response = await fetch('/api/auth/session', { cache: 'no-store' });
         if (!response.ok) {
           set({ user: null, sessionResolved: true });
           return;
         }
-        set({ user: await response.json(), sessionResolved: true });
+        const data = await response.json() as { user?: AuthUser | null };
+        set({ user: data.user ?? null, sessionResolved: true });
       } catch {
         set({ user: null, sessionResolved: true });
       } finally {

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import type { FormEvent } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
 import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
@@ -12,7 +11,6 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
-  const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const { setAuth } = useAuthStore();
   const { addToast } = useToastStore();
@@ -83,42 +81,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     }
   };
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-    const name = formData.get('name') as string;
-
-    try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-      const body = isLogin ? { email, password } : { name, email, password };
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setAuth(data.user);
-        addToast(isLogin ? 'Successfully logged in!' : 'Account created!', 'success');
-        onClose();
-      } else {
-        addToast(data.error || 'Authentication failed', 'error');
-      }
-    } catch (err) {
-      console.error(err);
-      addToast('Network error occurred', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || 'dummy-client-id'}>
     <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -127,76 +89,45 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <X className="w-6 h-6" />
         </button>
 
-        <h2 className="text-2xl font-bold text-gray-900 font-sans mb-2">
-          {isLogin ? 'Welcome Back' : 'Create Account'}
-        </h2>
+        <h2 className="text-2xl font-bold text-gray-900 font-sans mb-2">Welcome Back</h2>
         <p className="text-gray-500 mb-8">
-          {isLogin ? 'Sign in to access your orders and saved items.' : 'Join us to get the best shopping experience.'}
+          Sign in to access your orders and saved items.
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {!isLogin && (
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1.5">Full Name</label>
-              <input required type="text" name="name" className="w-full h-12 px-4 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#F97316] focus:border-transparent outline-none transition-all" placeholder="John Doe" />
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <div className="relative w-full h-10 overflow-hidden rounded-xl bg-[#F97316] shadow-md">
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2 text-sm font-bold text-white">
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-white">
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+                  <path fill="#4285F4" d="M21.35 12.21c0-.71-.06-1.39-.18-2.04H12v3.86h5.24a4.48 4.48 0 0 1-1.94 2.94v2.51h3.14c1.84-1.7 2.91-4.2 2.91-7.27Z" />
+                  <path fill="#34A853" d="M12 21.71c2.63 0 4.84-.87 6.45-2.35l-3.14-2.51c-.87.58-1.99.92-3.31.92-2.54 0-4.7-1.72-5.47-4.03H3.28v2.59A9.74 9.74 0 0 0 12 21.71Z" />
+                  <path fill="#FBBC05" d="M6.53 13.74A5.86 5.86 0 0 1 6.22 12c0-.6.11-1.18.31-1.74V7.67H3.28A9.71 9.71 0 0 0 2.29 12c0 1.56.37 3.04.99 4.33l3.25-2.59Z" />
+                  <path fill="#EA4335" d="M12 6.23c1.43 0 2.71.49 3.72 1.45l2.79-2.79C16.84 3.33 14.63 2.29 12 2.29a9.74 9.74 0 0 0-8.72 5.38l3.25 2.59C7.3 7.95 9.46 6.23 12 6.23Z" />
+                </svg>
+              </span>
+              Continue with Google
             </div>
-          )}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1.5">Email Address</label>
-            <input required type="email" name="email" className="w-full h-12 px-4 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#F97316] focus:border-transparent outline-none transition-all" placeholder="you@example.com" />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1.5">Password</label>
-            <input required type="password" name="password" className="w-full h-12 px-4 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#F97316] focus:border-transparent outline-none transition-all" placeholder="••••••••" />
-          </div>
-
-          <button disabled={loading} type="submit" className="w-full py-3.5 px-4 bg-[#F97316] text-white font-bold rounded-xl hover:bg-orange-600 transition-colors disabled:opacity-50 shadow-md active:scale-[0.98] mt-2">
-            {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
-          </button>
-        </form>
-
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500 font-medium">Or continue with</span>
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-col items-center justify-center space-y-4">
-            <div className="w-full relative min-h-11">
-              {/* @react-oauth/google's GoogleLogin component provides the exact Google button and handles the credential flow */}
-              <div className="absolute inset-0 flex justify-center">
+            <div className="absolute inset-0 opacity-0">
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
                   onError={() => addToast('Google Sign-In failed', 'error')}
-                  useOneTap
-                  theme="outline"
+                  theme="filled_black"
                   size="large"
                   text="continue_with"
+                  shape="rectangular"
                   width="100%"
                 />
-              </div>
             </div>
-            <button
-              type="button"
-              onClick={handleStellarLogin}
-              disabled={loading}
-              className="w-full py-2.5 px-4 bg-[#1B1F5E] text-white font-bold rounded-xl hover:bg-indigo-900 transition-colors disabled:opacity-50 shadow-md flex items-center justify-center gap-2"
-            >
-              Login with Stellar Wallet
-            </button>
           </div>
-        </div>
-
-        <p className="text-center text-sm text-gray-500 mt-8">
-          {isLogin ? "Don't have an account? " : "Already have an account? "}
-          <button onClick={() => setIsLogin(!isLogin)} className="text-[#1B1F5E] font-bold hover:underline">
-            {isLogin ? 'Sign up' : 'Sign in'}
+          <button
+            type="button"
+            onClick={handleStellarLogin}
+            disabled={loading}
+            className="w-full py-2.5 px-4 bg-[#1B1F5E] text-white font-bold rounded-xl hover:bg-indigo-900 transition-colors disabled:opacity-50 shadow-md flex items-center justify-center gap-2"
+          >
+            Login with Stellar Wallet
           </button>
-        </p>
+        </div>
       </div>
     </div>
     </GoogleOAuthProvider>

@@ -1402,12 +1402,19 @@ const PORT = Number(process.env.PORT) || 3000;
       const q = getString(req.query.q, 100);
       const limitValue = Number(req.query.limit ?? 20);
       const limit = Number.isInteger(limitValue) && limitValue > 0 ? Math.min(limitValue, 48) : 20;
-      const products = await prisma.product.findMany({
-        where: { isActive: true, ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}) },
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, stock: true, rating: true, reviewCount: true, category: { select: { slug: true, name: true } }, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
-      });
+      const offsetValue = Number(req.query.offset ?? 0);
+      const offset = Number.isInteger(offsetValue) && offsetValue >= 0 ? Math.min(offsetValue, 10_000) : 0;
+      const where = { isActive: true, ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' as const } }, { description: { contains: q, mode: 'insensitive' as const } }] } : {}) };
+      const [total, products] = await Promise.all([
+        prisma.product.count({ where }),
+        prisma.product.findMany({
+          where,
+          skip: offset,
+          take: limit,
+          orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+          select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, stock: true, rating: true, reviewCount: true, category: { select: { slug: true, name: true } }, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
+        }),
+      ]);
       setPublicCache(res, 20, 60);
       res.json({
         products: products.map((product) => toAgentCatalogProduct({
@@ -1415,6 +1422,7 @@ const PORT = Number(process.env.PORT) || 3000;
           categorySlug: product.category?.slug || null,
           imageUrl: product.images[0]?.url || null,
         }, getIssuer(req))),
+        pagination: { offset, limit, total, next_offset: offset + products.length < total ? offset + products.length : null },
       });
     } catch (err) {
       console.error(err);

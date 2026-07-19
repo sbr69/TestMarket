@@ -53,6 +53,10 @@ const rules: TaxonomyRule[] = [
 
 const normalize = (value: unknown) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const unique = (values: Array<string | null | undefined>) => [...new Set(values.map((value) => normalize(value)).filter(Boolean))];
+const SEARCH_STOP_WORDS = new Set([
+  'a', 'an', 'and', 'any', 'best', 'browse', 'buy', 'find', 'for', 'from', 'get', 'i', 'in', 'is', 'it',
+  'me', 'my', 'of', 'on', 'or', 'other', 'please', 'recommend', 'show', 'some', 'something', 'the', 'to', 'under', 'what', 'which', 'with', 'your',
+]);
 
 const singular = (token: string) => {
   if (token.endsWith('ies') && token.length > 4) return `${token.slice(0, -3)}y`;
@@ -62,6 +66,7 @@ const singular = (token: string) => {
 };
 
 const canonicalTokens = (value: unknown) => [...new Set(normalize(value).split(' ').filter((token) => token.length >= 2).map(singular))];
+const searchTokens = (value: unknown) => canonicalTokens(value).filter((token) => !SEARCH_STOP_WORDS.has(token));
 
 function attributesFor(product: CatalogTaxonomyInput) {
   return (product.specs || [])
@@ -82,11 +87,11 @@ function sourceFor(product: CatalogTaxonomyInput) {
 
 function ruleMatchesQuery(rule: TaxonomyRule, query: string) {
   if (rule.pattern.test(query)) return true;
-  const queryTokens = canonicalTokens(query);
+  const queryTokens = searchTokens(query);
   if (!queryTokens.length) return false;
   return rule.aliases.some((alias) => {
     const aliasText = normalize(alias);
-    const aliasTokens = canonicalTokens(alias);
+    const aliasTokens = searchTokens(alias);
     return normalize(query).includes(aliasText)
       || aliasText.includes(normalize(query))
       || (aliasTokens.length > 0 && aliasTokens.every((token) => queryTokens.includes(token)));
@@ -129,7 +134,7 @@ export function deriveCatalogTaxonomy(product: CatalogTaxonomyInput) {
 export function expandCatalogSearchTerms(query: string) {
   const normalizedQuery = normalize(query);
   if (!normalizedQuery) return [];
-  const expanded = [normalizedQuery, ...canonicalTokens(normalizedQuery)];
+  const expanded = [normalizedQuery, ...searchTokens(normalizedQuery)];
   for (const rule of rules) {
     if (!ruleMatchesQuery(rule, normalizedQuery)) continue;
     expanded.push(rule.productType, ...rule.path, ...rule.aliases);
@@ -150,7 +155,7 @@ function tokenMatches(text: string, term: string) {
 export function catalogSearchScore(product: CatalogTaxonomyInput, query: string) {
   const phrase = normalize(query);
   if (!phrase) return 0;
-  const terms = canonicalTokens(phrase);
+  const terms = searchTokens(phrase);
   const taxonomy = deriveCatalogTaxonomy(product);
   const fields: Array<[string, number]> = [
     [normalize(product.name), 52],

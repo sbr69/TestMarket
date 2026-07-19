@@ -67,6 +67,20 @@ test('merchant taxonomy resolves wireless audio to audio products and never fall
   assert.ok(expandCatalogSearchTerms('desk accessories').includes('mouse'));
 });
 
+test('filler words never turn an unrelated catalogue into a broad semantic match', () => {
+  const scienceKit = {
+    id: 'science-kit', name: 'Science Kit for Kids', brand: 'Thames & Kosmos', description: 'Legacy product description', price: 34.99,
+    categorySlug: 'toys', categoryName: 'Toys', rating: 3.7, stock: 4,
+  };
+  const vacuum = {
+    id: 'vacuum', name: 'Robot Vacuum Cleaner', brand: 'iRobot', description: 'Perfect for your daily needs', price: 299,
+    categorySlug: 'home-kitchen', categoryName: 'Home & Kitchen', rating: 4.4, stock: 4,
+  };
+  const matches = rankCatalogMatches([scienceKit, vacuum], 'find a gift for kids');
+  assert.deepEqual(matches.map((match) => match.product.id), ['science-kit']);
+  assert.equal(agentCatalogMatchScore(vacuum, 'find a gift for kids'), 0);
+});
+
 test('merchant discovery facets expose only the taxonomy represented by the matched set', () => {
   const audio = { id: 'bose', name: 'Bose QuietComfort Earbuds II', brand: 'Bose', price: 249, categorySlug: 'electronics', categoryName: 'Electronics' };
   const secondAudio = { id: 'sony', name: 'Sony WH-1000XM5 Wireless Headphones', brand: 'Sony', price: 348, categorySlug: 'electronics', categoryName: 'Electronics' };

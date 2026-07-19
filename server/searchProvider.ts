@@ -61,34 +61,36 @@ export async function searchOpenSearch(query: string, filters: OpenSearchFilters
   try {
     const response = await client.search({
       index: OPENSEARCH_INDEX,
-      from: (page - 1) * limit,
-      size: limit,
       timeout: '700ms',
       track_total_hits: true,
-      query: {
-        bool: {
-          must: [{
-            multi_match: {
-              query,
-              fields: [
-                'name^10', 'brand^7', 'product_type^7', 'search_aliases^6',
-                'taxonomy_path^5', 'tags^4', 'attributes^3', 'category_name^3', 'description',
-              ],
-              type: 'best_fields',
-              operator: 'and',
-              minimum_should_match: '60%',
-              fuzziness: 'AUTO',
-              prefix_length: 1,
-            },
-          }],
-          filter,
+      body: {
+        from: (page - 1) * limit,
+        size: limit,
+        query: {
+          bool: {
+            must: [{
+              multi_match: {
+                query,
+                fields: [
+                  'name^10', 'brand^7', 'product_type^7', 'search_aliases^6',
+                  'taxonomy_path^5', 'tags^4', 'attributes^3', 'category_name^3', 'description',
+                ],
+                type: 'best_fields',
+                operator: 'and',
+                minimum_should_match: '60%',
+                fuzziness: 'AUTO',
+                prefix_length: 1,
+              },
+            }],
+            filter,
+          },
         },
-      },
-      aggs: {
-        brands: { terms: { field: 'brand.keyword', size: 30 } },
-        categories: { terms: { field: 'category_slug', size: 30 } },
-        product_types: { terms: { field: 'product_type.keyword', size: 30 } },
-        price_xlm: { stats: { field: 'price' } },
+        aggs: {
+          brands: { terms: { field: 'brand.keyword', size: 30 } },
+          categories: { terms: { field: 'category_slug', size: 30 } },
+          product_types: { terms: { field: 'product_type.keyword', size: 30 } },
+          price_xlm: { stats: { field: 'price' } },
+        },
       },
     } as any);
     const body: any = response.body || response;
@@ -113,14 +115,16 @@ export async function suggestOpenSearch(query: string, limit: number) {
   try {
     const response = await client.search({
       index: OPENSEARCH_INDEX,
-      size: Math.min(limit, 10),
       _source: ['name', 'slug', 'brand', 'product_type', 'category_name'],
-      query: {
-        multi_match: {
-          query,
-          type: 'bool_prefix',
-          fields: ['name^10', 'name._2gram^5', 'name._3gram^3', 'brand^4', 'search_aliases^4'],
-          fuzziness: 'AUTO',
+      body: {
+        size: Math.min(limit, 10),
+        query: {
+          multi_match: {
+            query,
+            type: 'bool_prefix',
+            fields: ['name^10', 'name._2gram^5', 'name._3gram^3', 'brand^4', 'search_aliases^4'],
+            fuzziness: 'AUTO',
+          },
         },
       },
     } as any);

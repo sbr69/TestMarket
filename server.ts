@@ -1405,11 +1405,11 @@ const PORT = Number(process.env.PORT) || 3000;
         where: { isActive: true, ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}) },
         take: limit,
         orderBy: { createdAt: 'desc' },
-        select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, stock: true, rating: true, category: { select: { slug: true, name: true } }, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
+        select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, stock: true, rating: true, reviewCount: true, category: { select: { slug: true, name: true } }, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
       });
       setPublicCache(res, 20, 60);
       res.json({
-        products: products.map((product) => ({ product_id: product.id, name: product.name, brand: product.brand, description: product.description, price: product.price, currency: 'USD', stock: product.stock, rating: product.rating, category: product.category?.slug || null, image_url: product.images[0]?.url || null, url: `${getIssuer(req)}/product/${product.id}` })),
+        products: products.map((product) => ({ product_id: product.id, name: product.name, brand: product.brand, description: product.description, price: product.price, currency: 'USD', stock: product.stock, rating: product.rating, review_count: product.reviewCount, category: product.category?.slug || null, image_url: product.images[0]?.url || null, url: `${getIssuer(req)}/product/${product.id}` })),
       });
     } catch (err) {
       console.error(err);

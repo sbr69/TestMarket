@@ -528,6 +528,7 @@ const PORT = Number(process.env.PORT) || 3000;
       checkout_prepare_endpoint: `${issuer}/api/agent/commerce/v1/checkout/prepare`,
       checkout_confirm_endpoint: `${issuer}/api/agent/commerce/v1/checkout/confirm`,
       orders_endpoint: `${issuer}/api/agent/commerce/v1/orders`,
+      reviews_endpoint_template: `${issuer}/api/products/{product_id}/reviews`,
       required_scopes: {
         checkout_prepare_endpoint: ['checkout:prepare'],
         checkout_confirm_endpoint: ['checkout:confirm'],

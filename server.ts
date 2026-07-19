@@ -15,6 +15,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { PaymentVerificationUnavailableError, stellarHorizonVerifier } from './server/stellarHorizon';
 import { assertCheckoutClaimed, validateCheckoutConfirmation } from './server/agentCheckoutPolicy';
+import { toAgentCatalogProduct } from './server/agentCommerce';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma = globalForPrisma.prisma ?? new PrismaClient();
@@ -1409,7 +1410,11 @@ const PORT = Number(process.env.PORT) || 3000;
       });
       setPublicCache(res, 20, 60);
       res.json({
-        products: products.map((product) => ({ product_id: product.id, name: product.name, brand: product.brand, description: product.description, price: product.price, currency: 'USD', stock: product.stock, rating: product.rating, review_count: product.reviewCount, category: product.category?.slug || null, image_url: product.images[0]?.url || null, url: `${getIssuer(req)}/product/${product.id}` })),
+        products: products.map((product) => toAgentCatalogProduct({
+          ...product,
+          categorySlug: product.category?.slug || null,
+          imageUrl: product.images[0]?.url || null,
+        }, getIssuer(req))),
       });
     } catch (err) {
       console.error(err);

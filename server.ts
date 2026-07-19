@@ -542,6 +542,16 @@ const PORT = Number(process.env.PORT) || 3000;
     });
   });
 
+  // Public, read-only catalogue discovery for search engines and shopping
+  // assistants. It exposes only the same product data already visible to a
+  // browser; OAuth remains mandatory for profile, checkout, orders, and any
+  // action that changes state.
+  app.get('/.well-known/agent-catalog', (req, res) => {
+    const issuer = getIssuer(req);
+    setPublicCache(res, 300, 3600);
+    res.json({ version: '1.0', catalog_endpoint: `${issuer}/catalog.json`, format: 'application/json', access: 'public-read-only' });
+  });
+
   app.get(['/oauth/client', '/api/oauth/client'], async (req, res) => {
     try {
       const clientId = getString(req.query.client_id, 128);
@@ -673,6 +683,49 @@ const PORT = Number(process.env.PORT) || 3000;
   });
 
   // --- Public Product Endpoints ---
+  app.get('/robots.txt', (req, res) => {
+    const issuer = getIssuer(req);
+    res.type('text/plain').send(`User-agent: *\nAllow: /\nSitemap: ${issuer}/sitemap.xml\n`);
+  });
+
+  app.get('/sitemap.xml', async (req, res) => {
+    try {
+      const issuer = getIssuer(req);
+      const products = await prisma.product.findMany({ where: { isActive: true }, select: { id: true, createdAt: true }, take: 10_000, orderBy: { createdAt: 'desc' } });
+      const urls = [`<url><loc>${issuer}/</loc></url>`, ...products.map((product) => `<url><loc>${issuer}/product/${encodeURIComponent(product.id)}</loc><lastmod>${product.createdAt.toISOString()}</lastmod></url>`)].join('');
+      setPublicCache(res, 300, 900);
+      res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
+    } catch (err) {
+      console.error(err);
+      res.status(500).type('text/plain').send('Unable to generate sitemap');
+    }
+  });
+
+  app.get('/catalog.json', async (req, res) => {
+    try {
+      const issuer = getIssuer(req);
+      const products = await cacheQuery('public:catalog:v1', 60_000, () => prisma.product.findMany({
+        where: { isActive: true },
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+        select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, rating: true, stock: true, createdAt: true, category: { select: { slug: true, name: true } }, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
+      }));
+      setPublicCache(res, 60, 300);
+      res.json({
+        version: '1.0', currency: 'USD', generated_at: new Date().toISOString(),
+        products: products.map((product) => ({
+          id: product.id, name: product.name, brand: product.brand, description: product.description,
+          price: product.price, mrp: product.mrp, currency: 'USD', rating: product.rating, stock: product.stock,
+          category: product.category, image_url: product.images[0]?.url || null, url: `${issuer}/product/${product.id}`,
+          updated_at: product.createdAt.toISOString(),
+        })),
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
   app.get('/api/categories', async (req, res) => {
     try {
       const categories = await cacheQuery('categories', 5 * 60_000, () => prisma.category.findMany({
@@ -748,6 +801,7 @@ const PORT = Number(process.env.PORT) || 3000;
               id: true,
               name: true,
               brand: true,
+              description: true,
               price: true,
               mrp: true,
               rating: true,
@@ -765,6 +819,7 @@ const PORT = Number(process.env.PORT) || 3000;
         id: p.id,
         name: p.name,
         brand: p.brand,
+        description: p.description,
         price: p.price,
         mrp: p.mrp,
         discount_percent: Math.round(((p.mrp - p.price) / p.mrp) * 100),
@@ -1349,11 +1404,11 @@ const PORT = Number(process.env.PORT) || 3000;
         where: { isActive: true, ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}) },
         take: limit,
         orderBy: { createdAt: 'desc' },
-        select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, stock: true, rating: true, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
+        select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, stock: true, rating: true, category: { select: { slug: true, name: true } }, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
       });
       setPublicCache(res, 20, 60);
       res.json({
-        products: products.map((product) => ({ product_id: product.id, name: product.name, brand: product.brand, description: product.description, price: product.price, currency: 'USD', stock: product.stock, rating: product.rating, image_url: product.images[0]?.url || null })),
+        products: products.map((product) => ({ product_id: product.id, name: product.name, brand: product.brand, description: product.description, price: product.price, currency: 'USD', stock: product.stock, rating: product.rating, category: product.category?.slug || null, image_url: product.images[0]?.url || null, url: `${getIssuer(req)}/product/${product.id}` })),
       });
     } catch (err) {
       console.error(err);

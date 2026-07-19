@@ -139,23 +139,25 @@ export async function indexOpenSearchDocuments(documents: IndexedProductDocument
   if (!exists) {
     await client.indices.create({
       index: OPENSEARCH_INDEX,
-      settings: {
-        analysis: {
-          analyzer: {
-            catalog_text: { type: 'custom', tokenizer: 'standard', filter: ['lowercase', 'asciifolding', 'catalog_synonyms'] },
-            autocomplete_index: { type: 'custom', tokenizer: 'standard', filter: ['lowercase', 'asciifolding', 'edge_ngram_filter'] },
-            autocomplete_search: { type: 'custom', tokenizer: 'standard', filter: ['lowercase', 'asciifolding'] },
-          },
-          filter: {
-            edge_ngram_filter: { type: 'edge_ngram', min_gram: 2, max_gram: 20 },
-            catalog_synonyms: { type: 'synonym_graph', synonyms: ['earbuds, earphones, headphones, wireless audio', 'kids, children, child, toddler', 'desk accessory, desk accessories, workspace, office setup'] },
+      body: {
+        settings: {
+          analysis: {
+            analyzer: {
+              catalog_text: { type: 'custom', tokenizer: 'standard', filter: ['lowercase', 'asciifolding', 'catalog_synonyms'] },
+              autocomplete_index: { type: 'custom', tokenizer: 'standard', filter: ['lowercase', 'asciifolding', 'edge_ngram_filter'] },
+              autocomplete_search: { type: 'custom', tokenizer: 'standard', filter: ['lowercase', 'asciifolding'] },
+            },
+            filter: {
+              edge_ngram_filter: { type: 'edge_ngram', min_gram: 2, max_gram: 20 },
+              catalog_synonyms: { type: 'synonym_graph', synonyms: ['earbuds, earphones, headphones, wireless audio', 'kids, children, child, toddler', 'desk accessory, desk accessories, workspace, office setup'] },
+            },
           },
         },
-      },
-      mappings: {
-        properties: {
-          id: { type: 'keyword' }, slug: { type: 'keyword' }, name: { type: 'text', analyzer: 'catalog_text', fields: { keyword: { type: 'keyword' }, _2gram: { type: 'text', analyzer: 'autocomplete_index', search_analyzer: 'autocomplete_search' }, _3gram: { type: 'text', analyzer: 'autocomplete_index', search_analyzer: 'autocomplete_search' } } },
-          brand: { type: 'text', analyzer: 'catalog_text', fields: { keyword: { type: 'keyword' } } }, description: { type: 'text', analyzer: 'catalog_text' }, category_slug: { type: 'keyword' }, category_name: { type: 'text', analyzer: 'catalog_text' }, product_type: { type: 'text', analyzer: 'catalog_text', fields: { keyword: { type: 'keyword' } } }, taxonomy_path: { type: 'text', analyzer: 'catalog_text' }, search_aliases: { type: 'text', analyzer: 'catalog_text' }, tags: { type: 'text', analyzer: 'catalog_text' }, attributes: { type: 'text', analyzer: 'catalog_text' }, price: { type: 'float' }, rating: { type: 'float' }, review_count: { type: 'integer' }, stock: { type: 'integer' }, availability: { type: 'keyword' },
+        mappings: {
+          properties: {
+            id: { type: 'keyword' }, slug: { type: 'keyword' }, name: { type: 'text', analyzer: 'catalog_text', fields: { keyword: { type: 'keyword' }, _2gram: { type: 'text', analyzer: 'autocomplete_index', search_analyzer: 'autocomplete_search' }, _3gram: { type: 'text', analyzer: 'autocomplete_index', search_analyzer: 'autocomplete_search' } } },
+            brand: { type: 'text', analyzer: 'catalog_text', fields: { keyword: { type: 'keyword' } } }, description: { type: 'text', analyzer: 'catalog_text' }, category_slug: { type: 'keyword' }, category_name: { type: 'text', analyzer: 'catalog_text' }, product_type: { type: 'text', analyzer: 'catalog_text', fields: { keyword: { type: 'keyword' } } }, taxonomy_path: { type: 'text', analyzer: 'catalog_text' }, search_aliases: { type: 'text', analyzer: 'catalog_text' }, tags: { type: 'text', analyzer: 'catalog_text' }, attributes: { type: 'text', analyzer: 'catalog_text' }, price: { type: 'float' }, rating: { type: 'float' }, review_count: { type: 'integer' }, stock: { type: 'integer' }, availability: { type: 'keyword' },
+          },
         },
       },
     } as any);

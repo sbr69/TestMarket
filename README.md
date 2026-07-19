@@ -57,6 +57,13 @@ OPENSEARCH_INDEX=testmarket-products
 npm run search:reindex
 ```
 
+If the local database is intentionally unavailable, index the live canonical
+merchant feed instead:
+
+```bash
+CATALOG_SOURCE_URL=https://your-testmarket-domain.example npm run search:reindex
+```
+
 When the optional cluster is unavailable, the API safely falls back to
 PostgreSQL rather than failing search requests.
 

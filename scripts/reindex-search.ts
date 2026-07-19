@@ -8,6 +8,30 @@ async function main() {
   if (!isOpenSearchConfigured()) {
     throw new Error('OpenSearch is not configured. Set OPENSEARCH_NODE and credentials in the environment.');
   }
+  const catalogSource = process.env.CATALOG_SOURCE_URL?.replace(/\/$/, '');
+  if (catalogSource) {
+    const documents: any[] = [];
+    let offset = 0;
+    do {
+      const response = await fetch(`${catalogSource}/catalog.json?limit=100&offset=${offset}`, { headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error(`Catalog source returned ${response.status}`);
+      const page: any = await response.json();
+      for (const product of page.products || []) {
+        documents.push({
+          id: product.id, slug: product.slug, name: product.name, brand: product.brand || '', description: product.description || '',
+          category_slug: product.category_slug || product.category?.slug || '', category_name: product.category_name || product.category?.name || '',
+          product_type: product.product_type || '', taxonomy_path: product.taxonomy_path || [], search_aliases: product.search_aliases || [],
+          tags: product.tags || [], attributes: product.attributes || [], price: Number(product.price || 0), rating: Number(product.rating || 0),
+          review_count: Number(product.review_count || 0), stock: Number(product.stock || 0), availability: product.availability === 'in_stock' ? 'in_stock' : 'out_of_stock',
+        });
+      }
+      offset = page.pagination?.next_offset;
+    } while (offset !== null && offset !== undefined);
+    const result = await indexOpenSearchDocuments(documents);
+    console.log(`Indexed ${result.indexed} active TestMarket products from ${catalogSource}.`);
+    return;
+  }
+
   const products = await prisma.product.findMany({
     where: { isActive: true },
     select: {

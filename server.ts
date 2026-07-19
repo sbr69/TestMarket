@@ -15,7 +15,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { PaymentVerificationUnavailableError, stellarHorizonVerifier } from './server/stellarHorizon';
 import { assertCheckoutClaimed, validateCheckoutConfirmation } from './server/agentCheckoutPolicy';
-import { toAgentCatalogProduct } from './server/agentCommerce';
+import { agentCatalogMatchScore, toAgentCatalogProduct } from './server/agentCommerce';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma = globalForPrisma.prisma ?? new PrismaClient();
@@ -526,10 +526,17 @@ const PORT = Number(process.env.PORT) || 3000;
       version: '1.0',
       oauth_authorization_server: `${issuer}/.well-known/oauth-authorization-server`,
       search_endpoint: `${issuer}/api/agent/commerce/v1/products/search`,
+      product_detail_endpoint_template: `${issuer}/api/agent/commerce/v1/products/{product_id}`,
       checkout_prepare_endpoint: `${issuer}/api/agent/commerce/v1/checkout/prepare`,
       checkout_confirm_endpoint: `${issuer}/api/agent/commerce/v1/checkout/confirm`,
       orders_endpoint: `${issuer}/api/agent/commerce/v1/orders`,
       reviews_endpoint_template: `${issuer}/api/products/{product_id}/reviews`,
+      catalog: {
+        pagination: { type: 'offset', parameter: 'offset', default_limit: 20, max_limit: 48 },
+        filters: ['category', 'in_stock', 'min_price_xlm', 'max_price_xlm'],
+        sort: ['relevance', 'price_asc', 'price_desc', 'rating_desc'],
+        product_fields: ['price_xlm', 'price_stroops', 'availability', 'category_name', 'product_type', 'tags', 'attributes'],
+      },
       required_scopes: {
         checkout_prepare_endpoint: ['checkout:prepare'],
         checkout_confirm_endpoint: ['checkout:confirm'],
@@ -706,21 +713,27 @@ const PORT = Number(process.env.PORT) || 3000;
   app.get('/catalog.json', async (req, res) => {
     try {
       const issuer = getIssuer(req);
-      const products = await cacheQuery('public:catalog:v1', 60_000, () => prisma.product.findMany({
-        where: { isActive: true },
-        orderBy: { createdAt: 'desc' },
-        take: 500,
-        select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, rating: true, stock: true, createdAt: true, category: { select: { slug: true, name: true } }, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
-      }));
+      const limitValue = Number(req.query.limit ?? 48);
+      const limit = Number.isInteger(limitValue) && limitValue > 0 ? Math.min(limitValue, 100) : 48;
+      const offsetValue = Number(req.query.offset ?? 0);
+      const offset = Number.isInteger(offsetValue) && offsetValue >= 0 ? Math.min(offsetValue, 10_000) : 0;
+      const [total, products] = await Promise.all([
+        prisma.product.count({ where: { isActive: true, stock: { gt: 0 } } }),
+        prisma.product.findMany({
+          where: { isActive: true, stock: { gt: 0 } }, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], skip: offset, take: limit,
+          select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, rating: true, stock: true, createdAt: true, category: { select: { slug: true, name: true } }, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
+        }),
+      ]);
       setPublicCache(res, 60, 300);
       res.json({
-        version: '1.0', currency: 'USD', generated_at: new Date().toISOString(),
+        version: '1.1', currency: 'XLM', generated_at: new Date().toISOString(),
         products: products.map((product) => ({
           id: product.id, name: product.name, brand: product.brand, description: product.description,
-          price: product.price, mrp: product.mrp, currency: 'USD', rating: product.rating, stock: product.stock,
+          price: product.price, price_xlm: Number(product.price).toFixed(7), price_stroops: String(Math.round(product.price * 10_000_000)), mrp: product.mrp, currency: 'XLM', rating: product.rating, stock: product.stock,
           category: product.category, image_url: product.images[0]?.url || null, url: `${issuer}/product/${product.id}`,
           updated_at: product.createdAt.toISOString(),
         })),
+        pagination: { offset, limit, total, next_offset: offset + products.length < total ? offset + products.length : null },
       });
     } catch (err) {
       console.error(err);
@@ -1400,26 +1413,63 @@ const PORT = Number(process.env.PORT) || 3000;
   app.get('/api/agent/commerce/v1/products/search', async (req, res) => {
     try {
       const q = getString(req.query.q, 100);
+      const category = getString(req.query.category, 80);
+      const inStock = req.query.in_stock !== 'false';
+      const minPriceValue = req.query.min_price_xlm ?? req.query.minPrice;
+      const maxPriceValue = req.query.max_price_xlm ?? req.query.maxPrice;
+      const minPrice = Number(minPriceValue);
+      const maxPrice = Number(maxPriceValue);
       const limitValue = Number(req.query.limit ?? 20);
       const limit = Number.isInteger(limitValue) && limitValue > 0 ? Math.min(limitValue, 48) : 20;
       const offsetValue = Number(req.query.offset ?? 0);
       const offset = Number.isInteger(offsetValue) && offsetValue >= 0 ? Math.min(offsetValue, 10_000) : 0;
-      const where = { isActive: true, ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' as const } }, { description: { contains: q, mode: 'insensitive' as const } }] } : {}) };
-      const [total, products] = await Promise.all([
+      const sort = getString(req.query.sort, 32) || (q ? 'relevance' : 'newest');
+      const where: any = { isActive: true };
+      if (inStock) where.stock = { gt: 0 };
+      if (category) where.category = { is: { OR: [{ slug: { equals: category, mode: 'insensitive' } }, { name: { equals: category, mode: 'insensitive' } }] } };
+      if (Number.isFinite(minPrice) || Number.isFinite(maxPrice)) {
+        where.price = {};
+        if (Number.isFinite(minPrice) && minPrice >= 0) where.price.gte = minPrice;
+        if (Number.isFinite(maxPrice) && maxPrice >= 0) where.price.lte = maxPrice;
+      }
+      if (q) {
+        const terms = [...new Set([q, ...q.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length >= 2)])].slice(0, 8);
+        where.OR = terms.flatMap((term) => [
+          { name: { contains: term, mode: 'insensitive' } },
+          { brand: { contains: term, mode: 'insensitive' } },
+          { description: { contains: term, mode: 'insensitive' } },
+          { category: { is: { OR: [{ slug: { contains: term, mode: 'insensitive' } }, { name: { contains: term, mode: 'insensitive' } }] } } },
+          { specs: { some: { OR: [{ key: { contains: term, mode: 'insensitive' } }, { value: { contains: term, mode: 'insensitive' } }] } } },
+        ]);
+      }
+      const select = {
+        id: true, name: true, brand: true, sellerName: true, description: true, price: true, mrp: true, stock: true, rating: true, reviewCount: true, createdAt: true,
+        category: { select: { slug: true, name: true } },
+        specs: { select: { key: true, value: true }, orderBy: { key: 'asc' as const }, take: 20 },
+        images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' as const } },
+      };
+      const orderBy = sort === 'price_asc' ? [{ price: 'asc' as const }, { id: 'asc' as const }]
+        : sort === 'price_desc' ? [{ price: 'desc' as const }, { id: 'asc' as const }]
+          : sort === 'rating_desc' ? [{ rating: 'desc' as const }, { id: 'asc' as const }]
+            : [{ createdAt: 'desc' as const }, { id: 'asc' as const }];
+      const findArgs: any = { where, orderBy, select };
+      if (q) findArgs.take = 500;
+      else Object.assign(findArgs, { skip: offset, take: limit });
+      const [total, retrieved] = await Promise.all([
         prisma.product.count({ where }),
-        prisma.product.findMany({
-          where,
-          skip: offset,
-          take: limit,
-          orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
-          select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, stock: true, rating: true, reviewCount: true, category: { select: { slug: true, name: true } }, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
-        }),
+        prisma.product.findMany(findArgs) as Promise<any[]>,
       ]);
+      const products = q && sort === 'relevance'
+        ? retrieved.sort((left, right) => agentCatalogMatchScore({ ...right, categorySlug: right.category?.slug, categoryName: right.category?.name, specs: right.specs }, q)
+          - agentCatalogMatchScore({ ...left, categorySlug: left.category?.slug, categoryName: left.category?.name, specs: left.specs }, q)
+          || right.rating - left.rating || left.id.localeCompare(right.id)).slice(offset, offset + limit)
+        : retrieved;
       setPublicCache(res, 20, 60);
       res.json({
         products: products.map((product) => toAgentCatalogProduct({
           ...product,
           categorySlug: product.category?.slug || null,
+          categoryName: product.category?.name || null,
           imageUrl: product.images[0]?.url || null,
         }, getIssuer(req))),
         pagination: { offset, limit, total, next_offset: offset + products.length < total ? offset + products.length : null },
@@ -1427,6 +1477,31 @@ const PORT = Number(process.env.PORT) || 3000;
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  app.get('/api/agent/commerce/v1/products/:productId', async (req, res) => {
+    try {
+      const productId = getString(req.params.productId, 64);
+      const product = await prisma.product.findFirst({
+        where: { id: productId, isActive: true, stock: { gt: 0 } },
+        select: {
+          id: true, name: true, brand: true, sellerName: true, description: true, price: true, stock: true, rating: true, reviewCount: true,
+          category: { select: { slug: true, name: true } },
+          specs: { select: { key: true, value: true }, orderBy: { key: 'asc' }, take: 50 },
+          images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } },
+        },
+      });
+      if (!product) return res.status(404).json({ error: 'PRODUCT_NOT_FOUND' });
+      return res.json(toAgentCatalogProduct({
+        ...product,
+        categorySlug: product.category?.slug || null,
+        categoryName: product.category?.name || null,
+        imageUrl: product.images[0]?.url || null,
+      }, getIssuer(req)));
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: 'INTERNAL_ERROR' });
     }
   });
 
@@ -1495,7 +1570,7 @@ const PORT = Number(process.env.PORT) || 3000;
       invalidateCache('product:');
       invalidateCache('products:search:');
       invalidateCache('products:batch:');
-      return res.status(201).json({ order_id: order.id, total: order.total, currency: 'USD', status: order.status });
+      return res.status(201).json({ order_id: order.id, total_xlm: Number(order.total).toFixed(7), total_stroops: String(Math.round(order.total * 10_000_000)), currency: 'XLM', status: order.status });
     } catch (err: any) {
       if (err instanceof PaymentVerificationUnavailableError) {
         res.set('Retry-After', String(err.retryAfterSeconds));
@@ -1513,7 +1588,7 @@ const PORT = Number(process.env.PORT) || 3000;
     const limitValue = Number(req.query.limit ?? 20);
     const limit = Number.isInteger(limitValue) && limitValue > 0 ? Math.min(limitValue, 50) : 20;
     const orders = await prisma.order.findMany({ where: { userId: req.user.userId }, orderBy: { createdAt: 'desc' }, take: limit, select: { id: true, createdAt: true, status: true, total: true, items: { select: { productId: true, quantity: true, priceAtPurchase: true } } } });
-    return res.json({ orders: orders.map((order) => ({ order_id: order.id, created_at: order.createdAt, status: order.status, total: order.total, currency: 'USD', items: order.items.map((item) => ({ product_id: item.productId, quantity: item.quantity, unit_price: item.priceAtPurchase })) })) });
+    return res.json({ orders: orders.map((order) => ({ order_id: order.id, created_at: order.createdAt, status: order.status, total_xlm: Number(order.total).toFixed(7), total_stroops: String(Math.round(order.total * 10_000_000)), currency: 'XLM', items: order.items.map((item) => ({ product_id: item.productId, quantity: item.quantity, unit_price_xlm: Number(item.priceAtPurchase).toFixed(7), unit_price_stroops: String(Math.round(item.priceAtPurchase * 10_000_000)) })) })) });
   });
 
   // Vite middleware for development (skip in Vercel/Serverless env)

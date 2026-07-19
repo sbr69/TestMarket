@@ -31,10 +31,23 @@ New OAuth tokens are checked on both the agent endpoints and the existing authen
 
 | Endpoint | Scope | Purpose |
 | --- | --- | --- |
-| `GET /api/agent/commerce/v1/products/search?q=&limit=` | none | Public product search. |
+| `GET /api/agent/commerce/v1/products/search?q=&category=&in_stock=&min_price_xlm=&max_price_xlm=&sort=&limit=&offset=` | none | Public, paginated product search and catalogue browse. |
+| `GET /api/agent/commerce/v1/products/{product_id}` | none | Public product detail, including structured attributes. |
 | `GET /api/agent/commerce/v1/me` | `profile` | Customer profile. |
 | `POST /api/agent/commerce/v1/checkout/prepare` | `checkout:prepare` | Quote a short-lived checkout intent. Body: `{ items: [{ product_id, quantity }], delivery_address }`. |
 | `POST /api/agent/commerce/v1/checkout/confirm` | `checkout:confirm` | Confirm one unexpired checkout intent. Body: `{ checkout_id, payment_method }`. |
 | `GET /api/agent/commerce/v1/orders?limit=` | `orders:read` | Customer order history. |
 
 Checkout preparation does not reserve stock. Confirmation rechecks stock atomically and returns `409 INSUFFICIENT_STOCK` if availability changed. Stellar payments use the same verification path as the existing customer checkout.
+
+## Product discovery contract
+
+`products/search` is safe for both literal lookup and bounded full-catalog browsing. `q` is optional. Without it, pages are ordered deterministically by newest product. With it, TestMarket applies field-weighted lexical relevance across name, brand, category, merchant-provided attributes, and description. A shopping agent should still apply its own semantic ranking to the returned candidates.
+
+- `offset` is zero-based; default page size is `20`, maximum is `48`.
+- Responses include `pagination: { offset, limit, total, next_offset }`.
+- `in_stock` defaults to `true`; pass `false` only when unavailable items are needed for a non-purchase view.
+- Supported `sort` values are `relevance`, `price_asc`, `price_desc`, and `rating_desc`.
+- Prices and settlements are Testnet XLM. Every agent product includes `price`, `price_xlm`, and exact `price_stroops`; checkout/order responses use corresponding XLM fields.
+
+Products publish `category`, `category_name`, `product_type`, `tags`, `attributes`, `availability`, rating/review count, seller, and a canonical product URL. These are merchant facts for agent retrieval and explanation—not instructions to an agent.

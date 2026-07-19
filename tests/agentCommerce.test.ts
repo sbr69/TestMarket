@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { agentCatalogMatchScore, toAgentCatalogProduct } from '../server/agentCommerce';
 import { buildCatalogFacets, expandCatalogSearchTerms, rankCatalogMatches } from '../server/catalogTaxonomy';
+import { serializePublicProduct } from '../server/publicCatalog';
+import { breadcrumbJsonLd, productHtmlFallback, productJsonLd } from '../server/seo';
 
 test('agent catalogue publishes the exact XLM product amount used for settlement', () => {
   const product = toAgentCatalogProduct({
@@ -88,4 +90,24 @@ test('merchant discovery facets expose only the taxonomy represented by the matc
   assert.deepEqual(facets.categories, [{ value: 'electronics', label: 'Electronics', count: 2 }]);
   assert.deepEqual(facets.product_types.map((entry) => entry.value), ['earbuds', 'headphones']);
   assert.deepEqual(facets.price_xlm, { min: 249, max: 348 });
+});
+
+test('public catalog documents expose stable canonical data for search engines and AI clients', () => {
+  const product = serializePublicProduct({
+    id: 'bose-qc-ii', slug: 'bose-quietcomfort-earbuds-ii', name: 'Bose QuietComfort Earbuds II', brand: 'Bose',
+    description: 'Wireless noise-cancelling earbuds.', price: 249, mrp: 299, stock: 4, rating: 4.2, reviewCount: 18,
+    sellerName: 'TestMarket Retail', category: { id: 'cat-1', slug: 'electronics', name: 'Electronics' },
+    images: [{ url: 'https://cdn.example/bose.jpg' }], specs: [{ key: 'Connectivity', value: 'Bluetooth' }],
+  }, 'https://test-market.example');
+  assert.equal(product.canonical_url, 'https://test-market.example/product/bose-quietcomfort-earbuds-ii');
+  assert.equal(product.currency, 'XLM');
+  assert.equal(product.availability, 'in_stock');
+  assert.equal(product.category?.slug, 'electronics');
+  assert.equal(product.shipping.estimated_delivery_days.max, 5);
+  const jsonLd = productJsonLd(product);
+  assert.equal(jsonLd['@type'], 'Product');
+  assert.equal(jsonLd.offers.priceCurrency, 'XLM');
+  assert.equal(breadcrumbJsonLd(product)['@type'], 'BreadcrumbList');
+  assert.match(productHtmlFallback(product), /Bose QuietComfort Earbuds II/);
+  assert.match(productHtmlFallback(product), /Home/);
 });

@@ -17,6 +17,9 @@ import { PaymentVerificationUnavailableError, stellarHorizonVerifier } from './s
 import { assertCheckoutClaimed, validateCheckoutConfirmation } from './server/agentCheckoutPolicy';
 import { toAgentCatalogProduct } from './server/agentCommerce';
 import { buildCatalogFacets, expandCatalogSearchTerms, rankCatalogMatches } from './server/catalogTaxonomy';
+import { serializePublicProduct } from './server/publicCatalog';
+import { productHtmlFallback, renderProductMeta } from './server/seo';
+import { searchOpenSearch, suggestOpenSearch } from './server/searchProvider';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma = globalForPrisma.prisma ?? new PrismaClient();
@@ -162,6 +165,20 @@ const PORT = Number(process.env.PORT) || 3000;
   const setPublicCache = (res: express.Response, browserSeconds: number, cdnSeconds: number) => {
     res.set('Cache-Control', `public, max-age=${browserSeconds}, s-maxage=${cdnSeconds}, stale-while-revalidate=${cdnSeconds}`);
   };
+
+  const publicProductSelect = {
+    id: true, slug: true, categoryId: true, name: true, brand: true, sellerName: true, description: true,
+    mrp: true, price: true, stock: true, rating: true, reviewCount: true, createdAt: true,
+    category: { select: { id: true, slug: true, name: true } },
+    images: { select: { id: true, url: true }, orderBy: { sortOrder: 'asc' as const }, take: 12 },
+    specs: { select: { id: true, key: true, value: true }, orderBy: { key: 'asc' as const }, take: 50 },
+  };
+  const toPublicProduct = (product: any, issuer: string) => serializePublicProduct({
+    ...product,
+    categorySlug: product.category?.slug || null,
+    categoryName: product.category?.name || null,
+    imageUrl: product.images?.[0]?.url || null,
+  }, issuer);
   const getCookie = (req: express.Request, name: string) => {
     const match = req.headers.cookie?.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`));
     return match ? decodeURIComponent(match.slice(name.length + 1)) : undefined;
@@ -704,14 +721,46 @@ const PORT = Number(process.env.PORT) || 3000;
   // --- Public Product Endpoints ---
   app.get('/robots.txt', (req, res) => {
     const issuer = getIssuer(req);
-    res.type('text/plain').send(`User-agent: *\nAllow: /\nSitemap: ${issuer}/sitemap.xml\n`);
+    res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /oauth/\nSitemap: ${issuer}/sitemap.xml\n`);
   });
+
+  const xmlEscape = (value: unknown) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+  const SITEMAP_PAGE_SIZE = 1_000;
 
   app.get('/sitemap.xml', async (req, res) => {
     try {
       const issuer = getIssuer(req);
-      const products = await prisma.product.findMany({ where: { isActive: true }, select: { id: true, createdAt: true }, take: 10_000, orderBy: { createdAt: 'desc' } });
-      const urls = [`<url><loc>${issuer}/</loc></url>`, ...products.map((product) => `<url><loc>${issuer}/product/${encodeURIComponent(product.id)}</loc><lastmod>${product.createdAt.toISOString()}</lastmod></url>`)].join('');
+      const total = await prisma.product.count({ where: { isActive: true } });
+      const productPages = Math.max(1, Math.ceil(total / SITEMAP_PAGE_SIZE));
+      const maps = [`${issuer}/sitemap-pages.xml`, ...Array.from({ length: productPages }, (_value, index) => `${issuer}/sitemap-products-${index + 1}.xml`)]
+        .map((url) => `<sitemap><loc>${xmlEscape(url)}</loc></sitemap>`).join('');
+      setPublicCache(res, 300, 900);
+      res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${maps}</sitemapindex>`);
+    } catch (err) {
+      console.error(err);
+      res.status(500).type('text/plain').send('Unable to generate sitemap');
+    }
+  });
+
+  app.get('/sitemap-pages.xml', (req, res) => {
+    const issuer = getIssuer(req);
+    const urls = [`${issuer}/`, `${issuer}/?category=electronics`, `${issuer}/?category=toys`, `${issuer}/?category=home-kitchen`]
+      .map((url) => `<url><loc>${xmlEscape(url)}</loc></url>`).join('');
+    setPublicCache(res, 300, 900);
+    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
+  });
+
+  app.get('/sitemap-products-:page.xml', async (req, res) => {
+    try {
+      const page = Number(req.params.page);
+      if (!Number.isInteger(page) || page < 1 || page > 10_000) return res.status(404).type('text/plain').send('Sitemap not found');
+      const issuer = getIssuer(req);
+      const products = await prisma.product.findMany({
+        where: { isActive: true }, select: { slug: true, createdAt: true }, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        skip: (page - 1) * SITEMAP_PAGE_SIZE, take: SITEMAP_PAGE_SIZE,
+      });
+      if (!products.length && page > 1) return res.status(404).type('text/plain').send('Sitemap not found');
+      const urls = products.map((product) => `<url><loc>${xmlEscape(`${issuer}/product/${encodeURIComponent(product.slug)}`)}</loc><lastmod>${product.createdAt.toISOString()}</lastmod></url>`).join('');
       setPublicCache(res, 300, 900);
       res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
     } catch (err) {
@@ -732,7 +781,7 @@ const PORT = Number(process.env.PORT) || 3000;
         prisma.product.findMany({
           where: { isActive: true, stock: { gt: 0 } }, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], skip: offset, take: limit,
           select: {
-            id: true, name: true, brand: true, sellerName: true, description: true, price: true, mrp: true,
+            id: true, slug: true, name: true, brand: true, sellerName: true, description: true, price: true, mrp: true,
             rating: true, reviewCount: true, stock: true, createdAt: true,
             category: { select: { slug: true, name: true } },
             specs: { select: { key: true, value: true }, orderBy: { key: 'asc' }, take: 50 },
@@ -743,24 +792,12 @@ const PORT = Number(process.env.PORT) || 3000;
       setPublicCache(res, 60, 300);
       res.json({
         version: '1.2', currency: 'XLM', generated_at: new Date().toISOString(),
-        products: products.map((product) => {
-          const enriched = toAgentCatalogProduct({
-            ...product,
-            categorySlug: product.category?.slug || null,
-            categoryName: product.category?.name || null,
-            imageUrl: product.images[0]?.url || null,
-          }, issuer);
-          return {
-            ...enriched,
-            // Preserve the original public-feed identifiers and category shape
-            // while publishing the richer generic agent fields beside them.
-            id: product.id,
-            mrp: product.mrp,
-            category: product.category,
-            category_slug: enriched.category,
-            created_at: product.createdAt.toISOString(),
-          };
-        }),
+        products: products.map((product) => serializePublicProduct({
+          ...product,
+          categorySlug: product.category?.slug || null,
+          categoryName: product.category?.name || null,
+          imageUrl: product.images[0]?.url || null,
+        }, issuer)),
         pagination: { offset, limit, total, next_offset: offset + products.length < total ? offset + products.length : null },
       });
     } catch (err) {
@@ -783,10 +820,115 @@ const PORT = Number(process.env.PORT) || 3000;
     }
   });
 
-  app.get('/api/products/search', async (req, res) => {
+  const publicLimit = (value: unknown, fallback = 20, max = 100) => {
+    const parsed = Number(value ?? fallback);
+    return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, max) : fallback;
+  };
+
+  app.get('/api/brands', async (req, res) => {
+    try {
+      const limit = publicLimit(req.query.limit, 50, 100);
+      const brands = await cacheQuery(`brands:${limit}`, 5 * 60_000, async () => {
+        const rows = await prisma.product.groupBy({
+          by: ['brand'], where: { isActive: true, stock: { gt: 0 } }, _count: { _all: true }, orderBy: { _count: { brand: 'desc' } }, take: limit,
+        });
+        return rows.map((row) => ({ name: row.brand, product_count: row._count._all, url: `${getIssuer(req)}/api/products?brand=${encodeURIComponent(row.brand)}` }));
+      });
+      setPublicCache(res, 300, 900);
+      res.json({ brands, pagination: { limit, total: brands.length } });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  app.get('/api/deals', async (req, res) => {
+    try {
+      const limit = publicLimit(req.query.limit, 20, 100);
+      const products = await cacheQuery(`deals:${limit}`, 60_000, () => prisma.product.findMany({
+        where: { isActive: true, stock: { gt: 0 } },
+        // Prisma cannot sort by a calculated discount portably; fetch the
+        // bounded test catalogue and rank the observable merchant prices.
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], take: 500, select: publicProductSelect,
+      }));
+      const deals = products.map((product) => toPublicProduct(product, getIssuer(req)))
+        .filter((product) => product.discount_percent > 0)
+        .sort((left, right) => right.discount_percent - left.discount_percent || Number(right.rating || 0) - Number(left.rating || 0))
+        .slice(0, limit);
+      setPublicCache(res, 60, 300);
+      res.json({ products: deals, pagination: { limit, total: deals.length }, sort: 'discount_desc' });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  app.get('/api/trending', async (req, res) => {
+    try {
+      const limit = publicLimit(req.query.limit, 20, 100);
+      const products = await cacheQuery(`trending:${limit}`, 60_000, () => prisma.product.findMany({
+        where: { isActive: true, stock: { gt: 0 } }, orderBy: [{ reviewCount: 'desc' }, { rating: 'desc' }, { createdAt: 'desc' }], take: limit, select: publicProductSelect,
+      }));
+      setPublicCache(res, 60, 300);
+      res.json({ products: products.map((product) => toPublicProduct(product, getIssuer(req))), pagination: { limit, total: products.length }, sort: 'review_count_desc' });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  app.get('/api/recommendations', async (req, res) => {
+    try {
+      const identifier = getString(req.query.product_id ?? req.query.product ?? req.query.slug, 160);
+      const limit = publicLimit(req.query.limit, 8, 24);
+      const reference = identifier ? await prisma.product.findFirst({ where: { isActive: true, OR: [{ id: identifier }, { slug: identifier }] }, select: { id: true, categoryId: true, price: true } }) : null;
+      const products = await prisma.product.findMany({
+        where: {
+          isActive: true,
+          stock: { gt: 0 },
+          ...(reference ? { id: { not: reference.id }, categoryId: reference.categoryId } : {}),
+        },
+        orderBy: reference ? [{ rating: 'desc' }, { reviewCount: 'desc' }] : [{ reviewCount: 'desc' }, { rating: 'desc' }],
+        take: limit,
+        select: publicProductSelect,
+      });
+      setPublicCache(res, 60, 300);
+      res.json({ products: products.map((product) => toPublicProduct(product, getIssuer(req))), basis: reference ? 'same_category' : 'trending', pagination: { limit, total: products.length } });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  app.get('/api/reviews', async (req, res) => {
+    try {
+      const identifier = getString(req.query.product_id ?? req.query.product ?? req.query.slug, 160);
+      const limit = publicLimit(req.query.limit, 20, 100);
+      const pageValue = Number(req.query.page ?? 1);
+      const page = Number.isInteger(pageValue) && pageValue > 0 ? Math.min(pageValue, 10_000) : 1;
+      const product = identifier ? await prisma.product.findFirst({ where: { isActive: true, OR: [{ id: identifier }, { slug: identifier }] }, select: { id: true } }) : null;
+      if (identifier && !product) return res.status(404).json({ error: 'PRODUCT_NOT_FOUND' });
+      const where = product ? { productId: product.id } : {};
+      const [total, reviews] = await Promise.all([
+        prisma.review.count({ where }),
+        prisma.review.findMany({
+          where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' },
+          select: { id: true, productId: true, rating: true, title: true, body: true, verifiedPurchase: true, createdAt: true, user: { select: { name: true } } },
+        }),
+      ]);
+      setPublicCache(res, 30, 120);
+      res.json({ reviews: reviews.map((review) => ({ id: review.id, product_id: review.productId, reviewer: review.user.name, rating: review.rating, title: review.title, body: review.body, verified: review.verifiedPurchase, created_at: review.createdAt })), pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  const publicSearchHandler = async (req: express.Request, res: express.Response) => {
     try {
       const q = getString(req.query.q, 100);
       const category = getString(req.query.category, 80);
+      const brand = getString(req.query.brand, 120);
       const sort = getString(req.query.sort, 32);
       const inStock = req.query.in_stock === 'true';
       const pageValue = Number(req.query.page ?? 1);
@@ -816,6 +958,7 @@ const PORT = Number(process.env.PORT) || 3000;
         ]);
       }
       if (category) whereClause.category = { slug: category };
+      if (brand) whereClause.brand = { equals: brand, mode: 'insensitive' };
       if (minPrice !== undefined || maxPrice !== undefined) {
         whereClause.price = {};
         if (minPrice !== undefined) whereClause.price.gte = minPrice;
@@ -835,15 +978,47 @@ const PORT = Number(process.env.PORT) || 3000;
       
       const skip = (page - 1) * limit;
       
-      const cacheKey = `products:search:v2:${JSON.stringify({ q, category, minPrice, maxPrice, sort, inStock, rating, page, limit })}`;
+      const cacheKey = `products:search:v3:${JSON.stringify({ q, category, brand, minPrice, maxPrice, sort, inStock, rating, page, limit })}`;
       const { total, products, facets } = await cacheQuery(cacheKey, 20_000, async () => {
+        const hostedSearch = q ? await searchOpenSearch(q, { category, brand, minPrice, maxPrice, rating, inStock }, page, limit) : null;
+        if (hostedSearch) {
+          const records = await prisma.product.findMany({
+            where: { id: { in: hostedSearch.ids }, isActive: true },
+            select: {
+              id: true, slug: true, name: true, brand: true, sellerName: true, description: true, price: true, mrp: true,
+              rating: true, reviewCount: true, stock: true,
+              images: { select: { url: true }, orderBy: { sortOrder: 'asc' }, take: 1 },
+              category: { select: { id: true, slug: true, name: true } },
+              specs: { select: { key: true, value: true }, orderBy: { key: 'asc' }, take: 20 },
+            },
+          });
+          const byId = new Map(records.map((record) => [record.id, record]));
+          const ordered = hostedSearch.ids.map((id) => byId.get(id)).filter(Boolean).map((product: any) => ({
+            ...product,
+            relevance: hostedSearch.scores.get(product.id) || 0,
+          }));
+          const aggs: any = hostedSearch.facets || {};
+          const buckets = (name: string) => (aggs[name]?.buckets || []).map((bucket: any) => ({ value: bucket.key, label: bucket.key, count: bucket.doc_count }));
+          return {
+            total: hostedSearch.total,
+            products: ordered,
+            facets: {
+              categories: buckets('categories'),
+              brands: buckets('brands'),
+              product_types: buckets('product_types'),
+              price_xlm: aggs.price_xlm ? { min: aggs.price_xlm.min, max: aggs.price_xlm.max } : null,
+            },
+          };
+        }
         const findArgs: any = {
           where: whereClause,
           orderBy: orderByClause,
           select: {
             id: true,
+            slug: true,
             name: true,
             brand: true,
+            sellerName: true,
             description: true,
             price: true,
             mrp: true,
@@ -851,7 +1026,7 @@ const PORT = Number(process.env.PORT) || 3000;
             reviewCount: true,
             stock: true,
             images: { select: { url: true }, orderBy: { sortOrder: 'asc' }, take: 1 },
-            category: { select: { slug: true, name: true } },
+            category: { select: { id: true, slug: true, name: true } },
             specs: { select: { key: true, value: true }, orderBy: { key: 'asc' }, take: 20 },
           },
         };
@@ -881,21 +1056,48 @@ const PORT = Number(process.env.PORT) || 3000;
         };
       });
       
-      const formattedProducts = products.map(p => ({
-        id: p.id,
-        name: p.name,
-        brand: p.brand,
-        description: p.description,
-        price: p.price,
-        mrp: p.mrp,
-        discount_percent: Math.round(((p.mrp - p.price) / p.mrp) * 100),
-        rating: p.rating,
-        review_count: p.reviewCount,
-        stock: p.stock,
-        category: p.category.slug,
-        image_url: p.images[0]?.url || null,
-        ...(q ? { relevance: p.relevance } : {})
-      }));
+      const issuer = getIssuer(req);
+      const formattedProducts = products.map((p) => {
+        const discovery = toAgentCatalogProduct({
+          ...p,
+          categorySlug: p.category.slug,
+          categoryName: p.category.name,
+          imageUrl: p.images[0]?.url || null,
+        }, issuer);
+        return {
+          id: p.id,
+          slug: p.slug,
+          name: p.name,
+          title: p.name,
+          brand: p.brand,
+          seller: p.sellerName,
+          description: discovery.description,
+          price: p.price,
+          price_xlm: Number(p.price).toFixed(7),
+          price_stroops: String(Math.round(p.price * 10_000_000)),
+          mrp: p.mrp,
+          discount_percent: Math.round(((p.mrp - p.price) / p.mrp) * 100),
+          currency: 'XLM',
+          rating: p.rating,
+          review_count: p.reviewCount,
+          stock: p.stock,
+          availability: p.stock > 0 ? 'in_stock' : 'out_of_stock',
+          category: p.category.slug,
+          category_name: p.category.name,
+          category_detail: p.category,
+          product_type: discovery.product_type,
+          taxonomy_path: discovery.taxonomy_path,
+          tags: discovery.tags,
+          search_aliases: discovery.search_aliases,
+          attributes: discovery.attributes,
+          specifications: p.specs,
+          image_url: p.images[0]?.url || null,
+          url: discovery.url,
+          product_url: discovery.url,
+          canonical_url: discovery.url,
+          ...(q ? { relevance: p.relevance } : {}),
+        };
+      });
       
       setPublicCache(res, 20, 60);
       res.json({
@@ -906,6 +1108,42 @@ const PORT = Number(process.env.PORT) || 3000;
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
+    }
+  };
+
+  app.get(['/api/products', '/api/products/search', '/api/search'], publicSearchHandler);
+
+  app.get('/api/search/suggest', async (req, res) => {
+    try {
+      const q = getString(req.query.q, 200);
+      const limit = publicLimit(req.query.limit, 8, 10);
+      if (!q || q.trim().length < 2) return res.json({ suggestions: [] });
+      const hostedSuggestions = await suggestOpenSearch(q, limit);
+      if (hostedSuggestions) {
+        setPublicCache(res, 20, 60);
+        return res.json({ suggestions: hostedSuggestions.map((product) => ({
+          label: product.name, product_id: product.id, slug: product.slug, brand: product.brand || null,
+          product_type: product.product_type || null, category: product.category_name || null,
+          url: `${getIssuer(req)}/product/${encodeURIComponent(product.slug)}`,
+        })) });
+      }
+      const products = await prisma.product.findMany({
+        where: { isActive: true, stock: { gt: 0 }, OR: expandCatalogSearchTerms(q).flatMap((term) => [
+          { name: { contains: term, mode: 'insensitive' } }, { brand: { contains: term, mode: 'insensitive' } },
+        ]) },
+        select: { id: true, slug: true, name: true, brand: true, description: true, category: { select: { slug: true, name: true } }, specs: { select: { key: true, value: true }, take: 20 } },
+        take: 100,
+      });
+      const suggestions = rankCatalogMatches(products.map((product) => ({ ...product, categorySlug: product.category.slug, categoryName: product.category.name })), q)
+        .slice(0, limit).map(({ product }) => ({
+          label: product.name, product_id: product.id, slug: product.slug, brand: product.brand,
+          category: product.category.name, url: `${getIssuer(req)}/product/${encodeURIComponent(product.slug)}`,
+        }));
+      setPublicCache(res, 20, 60);
+      res.json({ suggestions });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'INTERNAL_ERROR' });
     }
   });
 
@@ -921,6 +1159,7 @@ const PORT = Number(process.env.PORT) || 3000;
         where: { id: { in: ids }, isActive: true },
         select: {
           id: true,
+          slug: true,
           name: true,
           brand: true,
           price: true,
@@ -931,6 +1170,7 @@ const PORT = Number(process.env.PORT) || 3000;
       }));
       const formatted = products.map(product => ({
         ...product,
+        url: `${getIssuer(req)}/product/${encodeURIComponent(product.slug)}`,
         discount_percent: Math.round(((product.mrp - product.price) / product.mrp) * 100),
         estimated_delivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
       }));
@@ -944,11 +1184,12 @@ const PORT = Number(process.env.PORT) || 3000;
 
   app.get('/api/products/:id', async (req, res) => {
     try {
-      const productId = getString(req.params.id, 64);
-      const product = await cacheQuery(`product:${productId}`, 60_000, () => prisma.product.findFirst({
-        where: { id: productId, isActive: true },
+      const identifier = getString(req.params.id, 160);
+      const product = await cacheQuery(`product:${identifier}`, 60_000, () => prisma.product.findFirst({
+        where: { isActive: true, OR: [{ id: identifier }, { slug: identifier }] },
         select: {
           id: true,
+          slug: true,
           categoryId: true,
           name: true,
           brand: true,
@@ -959,6 +1200,7 @@ const PORT = Number(process.env.PORT) || 3000;
           rating: true,
           reviewCount: true,
           sellerName: true,
+          createdAt: true,
           images: { select: { id: true, url: true }, orderBy: { sortOrder: 'asc' } },
           specs: { select: { id: true, key: true, value: true } },
           category: { select: { id: true, name: true, slug: true } },
@@ -968,12 +1210,12 @@ const PORT = Number(process.env.PORT) || 3000;
       if (!product) return res.status(404).json({ error: 'Product not found', code: 'NOT_FOUND', status: 404 });
       
       setPublicCache(res, 30, 120);
-      res.json({
+      res.json(serializePublicProduct({
         ...product,
-        discount_percent: Math.round(((product.mrp - product.price) / product.mrp) * 100),
-        seller_name: product.sellerName,
-        estimated_delivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-      });
+        categorySlug: product.category?.slug || null,
+        categoryName: product.category?.name || null,
+        imageUrl: product.images[0]?.url || null,
+      }, getIssuer(req)));
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
@@ -984,8 +1226,11 @@ const PORT = Number(process.env.PORT) || 3000;
     try {
       const limitValue = Number(req.query.limit ?? 20);
       const limit = Number.isInteger(limitValue) && limitValue > 0 ? Math.min(limitValue, 50) : 20;
+      const identifier = getString(req.params.id, 160);
+      const product = await prisma.product.findFirst({ where: { isActive: true, OR: [{ id: identifier }, { slug: identifier }] }, select: { id: true } });
+      if (!product) return res.status(404).json({ error: 'Product not found', code: 'NOT_FOUND', status: 404 });
       const reviews = await prisma.review.findMany({
-        where: { productId: req.params.id },
+        where: { productId: product.id },
         select: {
           id: true,
           rating: true,
@@ -1023,42 +1268,74 @@ const PORT = Number(process.env.PORT) || 3000;
         return res.status(400).json({ error: 'Invalid review fields', code: 'BAD_REQUEST', status: 400 });
       }
 
-      const productId = getString(req.params.id, 64);
+      const productIdentifier = getString(req.params.id, 160);
       const review = await prisma.$transaction(async (tx) => {
-        const product = await tx.product.findFirst({ where: { id: productId, isActive: true }, select: { id: true } });
+        const product = await tx.product.findFirst({ where: { isActive: true, OR: [{ id: productIdentifier }, { slug: productIdentifier }] }, select: { id: true, slug: true } });
         if (!product) throw new Error('PRODUCT_NOT_FOUND');
         const hasPurchased = await tx.orderItem.findFirst({
-          where: { productId, order: { userId: req.user.userId, status: 'Delivered' } },
+          where: { productId: product.id, order: { userId: req.user.userId, status: 'Delivered' } },
           select: { id: true },
         });
         const review = await tx.review.create({
-          data: { productId, userId: req.user.userId, rating, title, body, verifiedPurchase: Boolean(hasPurchased) },
+          data: { productId: product.id, userId: req.user.userId, rating, title, body, verifiedPurchase: Boolean(hasPurchased) },
           include: { user: { select: { name: true } } },
         });
-        const stats = await tx.review.aggregate({ where: { productId }, _avg: { rating: true }, _count: { _all: true } });
+        const stats = await tx.review.aggregate({ where: { productId: product.id }, _avg: { rating: true }, _count: { _all: true } });
         await tx.product.update({
-          where: { id: productId },
+          where: { id: product.id },
           data: { rating: stats._avg.rating || 0, reviewCount: stats._count._all },
         });
-        return review;
+        return { review, product };
       });
 
-      invalidateCache(`product:${productId}`);
+      invalidateCache(`product:${review.product.id}`);
+      invalidateCache(`product:${review.product.slug}`);
       invalidateCache('products:search:');
 
       res.json({
-        id: review.id,
-        reviewer: review.user.name,
-        rating: review.rating,
-        title: review.title,
-        body: review.body,
-        verified: review.verifiedPurchase,
-        date: review.createdAt
+        id: review.review.id,
+        reviewer: review.review.user.name,
+        rating: review.review.rating,
+        title: review.review.title,
+        body: review.review.body,
+        verified: review.review.verifiedPurchase,
+        date: review.review.createdAt
       });
     } catch (err) {
       if (err instanceof Error && err.message === 'PRODUCT_NOT_FOUND') return res.status(404).json({ error: 'Product not found', code: 'NOT_FOUND', status: 404 });
       console.error(err);
       res.status(500).json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR', status: 500 });
+    }
+  });
+
+  // Permanent, crawler-friendly product documents. The React storefront takes
+  // over after load, while crawlers and AI systems receive complete product
+  // content, canonical metadata and Product JSON-LD without scraping a JS shell.
+  app.get('/product/:identifier', async (req, res) => {
+    try {
+      const identifier = getString(req.params.identifier, 160);
+      if (!identifier) return res.status(404).send('Product not found');
+      const product = await cacheQuery(`seo-product:${identifier}`, 60_000, () => prisma.product.findFirst({
+        where: { isActive: true, OR: [{ id: identifier }, { slug: identifier }] },
+        select: publicProductSelect,
+      }));
+      if (!product) return res.status(404).send('Product not found');
+      const issuer = getIssuer(req);
+      const publicProduct = toPublicProduct(product, issuer);
+      if (identifier !== product.slug) return res.redirect(301, publicProduct.canonical_url);
+
+      const distTemplate = path.join(process.cwd(), 'dist', 'index.html');
+      const sourceTemplate = fs.existsSync(distTemplate)
+        ? fs.readFileSync(distTemplate, 'utf8')
+        : fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf8');
+      const fallback = productHtmlFallback(publicProduct);
+      const withContent = sourceTemplate.replace('<div id="root"></div>', `<div id="root">${fallback}</div>`);
+      const document = renderProductMeta(withContent, publicProduct, issuer);
+      res.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=900');
+      res.type('html').send(document);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Unable to load product');
     }
   });
 
@@ -1505,7 +1782,7 @@ const PORT = Number(process.env.PORT) || 3000;
         ]);
       }
       const select = {
-        id: true, name: true, brand: true, sellerName: true, description: true, price: true, mrp: true, stock: true, rating: true, reviewCount: true, createdAt: true,
+        id: true, slug: true, name: true, brand: true, sellerName: true, description: true, price: true, mrp: true, stock: true, rating: true, reviewCount: true, createdAt: true,
         category: { select: { slug: true, name: true } },
         specs: { select: { key: true, value: true }, orderBy: { key: 'asc' as const }, take: 20 },
         images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' as const } },
@@ -1574,7 +1851,7 @@ const PORT = Number(process.env.PORT) || 3000;
       const product = await prisma.product.findFirst({
         where: { id: productId, isActive: true, stock: { gt: 0 } },
         select: {
-          id: true, name: true, brand: true, sellerName: true, description: true, price: true, stock: true, rating: true, reviewCount: true,
+          id: true, slug: true, name: true, brand: true, sellerName: true, description: true, price: true, stock: true, rating: true, reviewCount: true,
           category: { select: { slug: true, name: true } },
           specs: { select: { key: true, value: true }, orderBy: { key: 'asc' }, take: 50 },
           images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } },

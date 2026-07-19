@@ -2,6 +2,7 @@ import { catalogSearchScore, deriveCatalogTaxonomy } from './catalogTaxonomy';
 
 export type AgentCatalogProductInput = {
   id: string;
+  slug?: string | null;
   name: string;
   brand?: string | null;
   description?: string | null;
@@ -74,7 +75,7 @@ export function toAgentCatalogProduct(product: AgentCatalogProductInput, issuer:
     tags,
     attributes,
     image_url: product.imageUrl || null,
-    url: `${issuer}/product/${product.id}`,
+    url: `${issuer}/product/${encodeURIComponent(product.slug || product.id)}`,
   };
 }
 

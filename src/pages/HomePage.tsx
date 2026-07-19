@@ -8,6 +8,7 @@ import { fetchPublicJson } from '../utils/apiCache';
 
 interface Product {
   id: string;
+  slug?: string;
   name: string;
   brand: string;
   price: number;
@@ -270,7 +271,7 @@ export default function HomePage() {
               ) : (
                 products.slice(0, 5).map(product => (
                   <div key={product.id} className="min-w-70 max-w-70 snap-start bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all group">
-                    <Link to={`/product/${product.id}`} className="block relative aspect-square bg-gray-50 p-4">
+                    <Link to={`/product/${product.slug || product.id}`} className="block relative aspect-square bg-gray-50 p-4">
                       {product.image_url ? (
                         <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" loading="lazy" decoding="async" />
                       ) : (
@@ -287,7 +288,7 @@ export default function HomePage() {
                       <Heart className={`w-4 h-4 ${wishlistIds.has(product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
                     </button>
                     <div className="p-4">
-                      <Link to={`/product/${product.id}`} className="hover:text-red-600 transition-colors">
+                      <Link to={`/product/${product.slug || product.id}`} className="hover:text-red-600 transition-colors">
                         <h3 className="font-medium text-gray-900 line-clamp-1 text-sm">{product.name}</h3>
                       </Link>
                       <div className="flex items-baseline gap-2 mt-2">
@@ -314,7 +315,7 @@ export default function HomePage() {
               ) : (
                 products.slice(0, 12).map(product => (
                   <div key={product.id} className="group relative flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
-                    <Link to={`/product/${product.id}`} className="aspect-4/5 bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden">
+                    <Link to={`/product/${product.slug || product.id}`} className="aspect-4/5 bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden">
                       {product.image_url ? (
                         <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" loading="lazy" decoding="async" />
                       ) : (
@@ -336,7 +337,7 @@ export default function HomePage() {
                     </button>
 
                     <div className="p-4 flex flex-col grow">
-                      <Link to={`/product/${product.id}`} className="hover:text-[#F97316] transition-colors">
+                      <Link to={`/product/${product.slug || product.id}`} className="hover:text-[#F97316] transition-colors">
                         <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">{product.brand}</p>
                         <h3 className="font-medium text-gray-900 mb-1 line-clamp-2 text-sm leading-tight font-sans">{product.name}</h3>
                       </Link>
@@ -477,7 +478,7 @@ export default function HomePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {products.map(product => (
                   <div key={product.id} className="group relative flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
-                    <Link to={`/product/${product.id}`} className="aspect-4/5 bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden">
+                    <Link to={`/product/${product.slug || product.id}`} className="aspect-4/5 bg-gray-50 p-4 flex items-center justify-center relative overflow-hidden">
                       {product.image_url ? (
                         <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" loading="lazy" decoding="async" />
                       ) : (
@@ -499,7 +500,7 @@ export default function HomePage() {
                     </button>
 
                     <div className="p-4 flex flex-col grow">
-                      <Link to={`/product/${product.id}`} className="hover:text-[#F97316] transition-colors">
+                      <Link to={`/product/${product.slug || product.id}`} className="hover:text-[#F97316] transition-colors">
                         <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">{product.brand}</p>
                         <h3 className="font-medium text-gray-900 mb-1 line-clamp-2 text-sm leading-tight font-sans">{product.name}</h3>
                       </Link>

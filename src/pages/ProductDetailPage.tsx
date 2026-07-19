@@ -19,6 +19,7 @@ interface ProductImage {
 
 interface Product {
   id: string;
+  slug: string;
   name: string;
   brand: string;
   description: string;
@@ -32,6 +33,8 @@ interface Product {
   specs: ProductSpec[];
   images: ProductImage[];
   estimated_delivery: string;
+  canonical_url?: string;
+  product_url?: string;
 }
 
 interface Review {
@@ -64,7 +67,7 @@ const ProductDetailSkeleton = () => (
 );
 
 export default function ProductDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { identifier } = useParams<{ identifier: string }>();
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [similarProducts, setSimilarProducts] = useState<Product[]>([]);
@@ -83,7 +86,9 @@ export default function ProductDetailPage() {
   const [showReviewForm, setShowReviewForm] = useState(false);
 
   const fetchReviews = () => {
-    fetch(`/api/products/${id}/reviews`)
+    const productId = product?.id || identifier;
+    if (!productId) return;
+    fetch(`/api/products/${encodeURIComponent(productId)}/reviews`)
       .then(res => {
         if (!res.ok) throw new Error('Unable to load reviews');
         return res.json();
@@ -99,7 +104,7 @@ export default function ProductDetailPage() {
   useEffect(() => {
     let isCurrent = true;
     setLoading(true);
-    fetchPublicJson<Product>(`/api/products/${id}`, 60_000)
+    fetchPublicJson<Product>(`/api/products/${encodeURIComponent(identifier || '')}`, 60_000)
       .then(data => {
         if (!isCurrent) return;
         setProduct(data);
@@ -126,11 +131,35 @@ export default function ProductDetailPage() {
         setLoading(false);
       });
     return () => { isCurrent = false; };
-  }, [id]);
+  }, [identifier]);
 
   useEffect(() => {
-    if (activeTab === 'reviews' && id) fetchReviews();
-  }, [activeTab, id]);
+    if (activeTab === 'reviews' && (identifier || product?.id)) fetchReviews();
+  }, [activeTab, identifier, product?.id]);
+
+  useEffect(() => {
+    if (!product) return;
+    const canonicalUrl = product.canonical_url || `${window.location.origin}/product/${product.slug || product.id}`;
+    document.title = `${product.name} | TestMarket`;
+    const setMeta = (attribute: 'name' | 'property', key: string, value: string) => {
+      let element = document.head.querySelector<HTMLMetaElement>(`meta[${attribute}="${key}"]`);
+      if (!element) {
+        element = document.createElement('meta');
+        element.setAttribute(attribute, key);
+        document.head.appendChild(element);
+      }
+      element.content = value;
+    };
+    setMeta('name', 'description', product.description.slice(0, 300));
+    setMeta('property', 'og:title', `${product.name} | TestMarket`);
+    setMeta('property', 'og:description', product.description.slice(0, 300));
+    let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) { canonical = document.createElement('link'); canonical.rel = 'canonical'; document.head.appendChild(canonical); }
+    canonical.href = canonicalUrl;
+    let structuredData = document.getElementById('testmarket-product-jsonld') as HTMLScriptElement | null;
+    if (!structuredData) { structuredData = document.createElement('script'); structuredData.id = 'testmarket-product-jsonld'; structuredData.type = 'application/ld+json'; document.head.appendChild(structuredData); }
+    structuredData.textContent = JSON.stringify({ '@context': 'https://schema.org', '@type': 'Product', name: product.name, description: product.description, image: product.images.map((image) => image.url), url: canonicalUrl, offers: { '@type': 'Offer', price: product.price, priceCurrency: 'XLM', availability: product.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock' } }).replace(/</g, '\\u003c');
+  }, [product]);
 
   if (loading) return <ProductDetailSkeleton />;
   if (!product) {
@@ -155,7 +184,7 @@ export default function ProductDetailPage() {
     }
     setIsSubmittingReview(true);
     try {
-      const res = await fetch(`/api/products/${id}/reviews`, {
+      const res = await fetch(`/api/products/${encodeURIComponent(product.id)}/reviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reviewForm)
@@ -163,7 +192,7 @@ export default function ProductDetailPage() {
       if (res.ok) {
         setReviewForm({ rating: 5, title: '', body: '' });
         setShowReviewForm(false);
-        invalidatePublicCache(`/api/products/${id}`);
+        invalidatePublicCache(`/api/products/${product.id}`);
         fetchReviews();
         // Option: refresh product data to update rating?
       } else {
@@ -490,7 +519,7 @@ export default function ProductDetailPage() {
           <div className="flex overflow-x-auto pb-4 -mx-2 px-2 snap-x gap-6 hide-scrollbar">
             {similarProducts.map(product => (
               <div key={product.id} className="min-w-60 max-w-60 snap-start bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-all group">
-                <Link to={`/product/${product.id}`} className="block relative aspect-square bg-gray-50 p-4">
+                <Link to={`/product/${product.slug || product.id}`} className="block relative aspect-square bg-gray-50 p-4">
                   {(product as any).image_url || (product.images && product.images[0]) ? (
                     <img src={(product as any).image_url || product.images[0].url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" loading="lazy" decoding="async" />
                   ) : (
@@ -498,7 +527,7 @@ export default function ProductDetailPage() {
                   )}
                 </Link>
                 <div className="p-4">
-                  <Link to={`/product/${product.id}`} className="hover:text-[#F97316] transition-colors">
+                  <Link to={`/product/${product.slug || product.id}`} className="hover:text-[#F97316] transition-colors">
                     <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">{product.brand}</p>
                     <h3 className="font-medium text-gray-900 line-clamp-2 text-sm leading-tight">{product.name}</h3>
                   </Link>

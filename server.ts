@@ -15,7 +15,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { PaymentVerificationUnavailableError, stellarHorizonVerifier } from './server/stellarHorizon';
 import { assertCheckoutClaimed, validateCheckoutConfirmation } from './server/agentCheckoutPolicy';
-import { agentCatalogMatchScore, toAgentCatalogProduct } from './server/agentCommerce';
+import { toAgentCatalogProduct } from './server/agentCommerce';
+import { buildCatalogFacets, expandCatalogSearchTerms, rankCatalogMatches } from './server/catalogTaxonomy';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma = globalForPrisma.prisma ?? new PrismaClient();
@@ -533,9 +534,10 @@ const PORT = Number(process.env.PORT) || 3000;
       reviews_endpoint_template: `${issuer}/api/products/{product_id}/reviews`,
       catalog: {
         pagination: { type: 'offset', parameter: 'offset', default_limit: 20, max_limit: 48 },
-        filters: ['category', 'in_stock', 'min_price_xlm', 'max_price_xlm'],
+        filters: ['category', 'brand', 'in_stock', 'min_price_xlm', 'max_price_xlm'],
         sort: ['relevance', 'price_asc', 'price_desc', 'rating_desc'],
-        product_fields: ['price_xlm', 'price_stroops', 'availability', 'category_name', 'product_type', 'tags', 'attributes'],
+        search: { mode: 'taxonomy_aware_lexical', response_facets: true, relevance_field: 'relevance' },
+        product_fields: ['price_xlm', 'price_stroops', 'availability', 'category_name', 'product_type', 'taxonomy_path', 'search_aliases', 'tags', 'attributes'],
       },
       required_scopes: {
         checkout_prepare_endpoint: ['checkout:prepare'],
@@ -558,7 +560,15 @@ const PORT = Number(process.env.PORT) || 3000;
   app.get('/.well-known/agent-catalog', (req, res) => {
     const issuer = getIssuer(req);
     setPublicCache(res, 300, 3600);
-    res.json({ version: '1.0', catalog_endpoint: `${issuer}/catalog.json`, format: 'application/json', access: 'public-read-only' });
+    res.json({
+      version: '1.1',
+      catalog_endpoint: `${issuer}/catalog.json`,
+      search_endpoint: `${issuer}/api/agent/commerce/v1/products/search`,
+      product_detail_endpoint_template: `${issuer}/api/agent/commerce/v1/products/{product_id}`,
+      format: 'application/json',
+      access: 'public-read-only',
+      capabilities: ['taxonomy', 'structured_attributes', 'facets', 'pagination', 'xlm_pricing'],
+    });
   });
 
   app.get(['/oauth/client', '/api/oauth/client'], async (req, res) => {
@@ -721,18 +731,36 @@ const PORT = Number(process.env.PORT) || 3000;
         prisma.product.count({ where: { isActive: true, stock: { gt: 0 } } }),
         prisma.product.findMany({
           where: { isActive: true, stock: { gt: 0 } }, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], skip: offset, take: limit,
-          select: { id: true, name: true, brand: true, description: true, price: true, mrp: true, rating: true, stock: true, createdAt: true, category: { select: { slug: true, name: true } }, images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } } },
+          select: {
+            id: true, name: true, brand: true, sellerName: true, description: true, price: true, mrp: true,
+            rating: true, reviewCount: true, stock: true, createdAt: true,
+            category: { select: { slug: true, name: true } },
+            specs: { select: { key: true, value: true }, orderBy: { key: 'asc' }, take: 50 },
+            images: { select: { url: true }, take: 1, orderBy: { sortOrder: 'asc' } },
+          },
         }),
       ]);
       setPublicCache(res, 60, 300);
       res.json({
-        version: '1.1', currency: 'XLM', generated_at: new Date().toISOString(),
-        products: products.map((product) => ({
-          id: product.id, name: product.name, brand: product.brand, description: product.description,
-          price: product.price, price_xlm: Number(product.price).toFixed(7), price_stroops: String(Math.round(product.price * 10_000_000)), mrp: product.mrp, currency: 'XLM', rating: product.rating, stock: product.stock,
-          category: product.category, image_url: product.images[0]?.url || null, url: `${issuer}/product/${product.id}`,
-          updated_at: product.createdAt.toISOString(),
-        })),
+        version: '1.2', currency: 'XLM', generated_at: new Date().toISOString(),
+        products: products.map((product) => {
+          const enriched = toAgentCatalogProduct({
+            ...product,
+            categorySlug: product.category?.slug || null,
+            categoryName: product.category?.name || null,
+            imageUrl: product.images[0]?.url || null,
+          }, issuer);
+          return {
+            ...enriched,
+            // Preserve the original public-feed identifiers and category shape
+            // while publishing the richer generic agent fields beside them.
+            id: product.id,
+            mrp: product.mrp,
+            category: product.category,
+            category_slug: enriched.category,
+            created_at: product.createdAt.toISOString(),
+          };
+        }),
         pagination: { offset, limit, total, next_offset: offset + products.length < total ? offset + products.length : null },
       });
     } catch (err) {
@@ -777,11 +805,15 @@ const PORT = Number(process.env.PORT) || 3000;
       
       let whereClause: any = { isActive: true };
       
-      if (q) {
-        whereClause.OR = [
-          { name: { contains: String(q), mode: 'insensitive' } },
-          { description: { contains: String(q), mode: 'insensitive' } }
-        ];
+      const searchTerms = q ? expandCatalogSearchTerms(q) : [];
+      if (searchTerms.length) {
+        whereClause.OR = searchTerms.flatMap((term) => [
+          { name: { contains: term, mode: 'insensitive' } },
+          { brand: { contains: term, mode: 'insensitive' } },
+          { description: { contains: term, mode: 'insensitive' } },
+          { category: { is: { OR: [{ slug: { contains: term, mode: 'insensitive' } }, { name: { contains: term, mode: 'insensitive' } }] } } },
+          { specs: { some: { OR: [{ key: { contains: term, mode: 'insensitive' } }, { value: { contains: term, mode: 'insensitive' } }] } } },
+        ]);
       }
       if (category) whereClause.category = { slug: category };
       if (minPrice !== undefined || maxPrice !== undefined) {
@@ -803,31 +835,50 @@ const PORT = Number(process.env.PORT) || 3000;
       
       const skip = (page - 1) * limit;
       
-      const cacheKey = `products:search:${JSON.stringify({ q, category, minPrice, maxPrice, sort, inStock, rating, page, limit })}`;
-      const { total, products } = await cacheQuery(cacheKey, 20_000, async () => {
-        const [total, products] = await Promise.all([
+      const cacheKey = `products:search:v2:${JSON.stringify({ q, category, minPrice, maxPrice, sort, inStock, rating, page, limit })}`;
+      const { total, products, facets } = await cacheQuery(cacheKey, 20_000, async () => {
+        const findArgs: any = {
+          where: whereClause,
+          orderBy: orderByClause,
+          select: {
+            id: true,
+            name: true,
+            brand: true,
+            description: true,
+            price: true,
+            mrp: true,
+            rating: true,
+            reviewCount: true,
+            stock: true,
+            images: { select: { url: true }, orderBy: { sortOrder: 'asc' }, take: 1 },
+            category: { select: { slug: true, name: true } },
+            specs: { select: { key: true, value: true }, orderBy: { key: 'asc' }, take: 20 },
+          },
+        };
+        if (q) findArgs.take = 1_000;
+        else Object.assign(findArgs, { skip, take: limit });
+        const [candidateTotal, retrieved] = await Promise.all([
           prisma.product.count({ where: whereClause }),
-          prisma.product.findMany({
-            where: whereClause,
-            orderBy: orderByClause,
-            skip,
-            take: limit,
-            select: {
-              id: true,
-              name: true,
-              brand: true,
-              description: true,
-              price: true,
-              mrp: true,
-              rating: true,
-              reviewCount: true,
-              stock: true,
-              images: { select: { url: true }, orderBy: { sortOrder: 'asc' }, take: 1 },
-              category: { select: { slug: true } },
-            },
-          }),
+          prisma.product.findMany(findArgs) as Promise<any[]>,
         ]);
-        return { total, products };
+        const candidates = retrieved.map((product) => ({
+          ...product,
+          categorySlug: product.category?.slug || null,
+          categoryName: product.category?.name || null,
+        }));
+        const matches = q ? rankCatalogMatches(candidates, q) : [];
+        const ordered = q ? [...matches].sort((left, right) => {
+          if (sort === 'price_asc') return Number(left.product.price) - Number(right.product.price) || right.relevance - left.relevance;
+          if (sort === 'price_desc') return Number(right.product.price) - Number(left.product.price) || right.relevance - left.relevance;
+          if (sort === 'rating') return Number(right.product.rating || 0) - Number(left.product.rating || 0) || right.relevance - left.relevance;
+          return right.relevance - left.relevance || Number(right.product.rating || 0) - Number(left.product.rating || 0);
+        }) : [];
+        const matchedProducts = q ? ordered.slice(skip, skip + limit).map((match) => ({ ...match.product, relevance: match.relevance })) : candidates;
+        return {
+          total: q ? ordered.length : candidateTotal,
+          products: matchedProducts,
+          facets: buildCatalogFacets(q ? ordered.map((match) => match.product) : candidates),
+        };
       });
       
       const formattedProducts = products.map(p => ({
@@ -841,14 +892,16 @@ const PORT = Number(process.env.PORT) || 3000;
         rating: p.rating,
         review_count: p.reviewCount,
         stock: p.stock,
-        category: p.category.slug, // Ideally we want slug, but this is fine
-        image_url: p.images[0]?.url || null
+        category: p.category.slug,
+        image_url: p.images[0]?.url || null,
+        ...(q ? { relevance: p.relevance } : {})
       }));
       
       setPublicCache(res, 20, 60);
       res.json({
         products: formattedProducts,
-        pagination: { total, page, limit, pages: Math.ceil(total / limit) }
+        pagination: { total, page, limit, pages: Math.ceil(total / limit) },
+        facets,
       });
     } catch (err) {
       console.error(err);
@@ -1414,6 +1467,7 @@ const PORT = Number(process.env.PORT) || 3000;
     try {
       const q = getString(req.query.q, 100);
       const category = getString(req.query.category, 80);
+      const brand = getString(req.query.brand, 120);
       const inStock = req.query.in_stock !== 'false';
       const minPriceValue = req.query.min_price_xlm ?? req.query.minPrice;
       const maxPriceValue = req.query.max_price_xlm ?? req.query.maxPrice;
@@ -1424,17 +1478,25 @@ const PORT = Number(process.env.PORT) || 3000;
       const offsetValue = Number(req.query.offset ?? 0);
       const offset = Number.isInteger(offsetValue) && offsetValue >= 0 ? Math.min(offsetValue, 10_000) : 0;
       const sort = getString(req.query.sort, 32) || (q ? 'relevance' : 'newest');
+      if ((minPriceValue !== undefined && (!Number.isFinite(minPrice) || minPrice < 0))
+        || (maxPriceValue !== undefined && (!Number.isFinite(maxPrice) || maxPrice < 0))
+        || (Number.isFinite(minPrice) && Number.isFinite(maxPrice) && minPrice > maxPrice)) {
+        return res.status(400).json({ error: 'INVALID_PRICE_FILTER' });
+      }
       const where: any = { isActive: true };
       if (inStock) where.stock = { gt: 0 };
       if (category) where.category = { is: { OR: [{ slug: { equals: category, mode: 'insensitive' } }, { name: { equals: category, mode: 'insensitive' } }] } };
+      if (brand) where.brand = { equals: brand, mode: 'insensitive' };
       if (Number.isFinite(minPrice) || Number.isFinite(maxPrice)) {
         where.price = {};
         if (Number.isFinite(minPrice) && minPrice >= 0) where.price.gte = minPrice;
         if (Number.isFinite(maxPrice) && maxPrice >= 0) where.price.lte = maxPrice;
       }
-      if (q) {
-        const terms = [...new Set([q, ...q.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length >= 2)])].slice(0, 8);
-        where.OR = terms.flatMap((term) => [
+      const searchTerms = q ? expandCatalogSearchTerms(q) : [];
+      if (searchTerms.length) {
+        // SQL narrows the catalogue using merchant taxonomy aliases first;
+        // the deterministic scorer below then rejects zero-relevance rows.
+        where.OR = searchTerms.flatMap((term) => [
           { name: { contains: term, mode: 'insensitive' } },
           { brand: { contains: term, mode: 'insensitive' } },
           { description: { contains: term, mode: 'insensitive' } },
@@ -1453,26 +1515,52 @@ const PORT = Number(process.env.PORT) || 3000;
           : sort === 'rating_desc' ? [{ rating: 'desc' as const }, { id: 'asc' as const }]
             : [{ createdAt: 'desc' as const }, { id: 'asc' as const }];
       const findArgs: any = { where, orderBy, select };
-      if (q) findArgs.take = 500;
+      const candidateCap = 1_000;
+      if (q) findArgs.take = candidateCap;
       else Object.assign(findArgs, { skip: offset, take: limit });
-      const [total, retrieved] = await Promise.all([
+      const [candidateTotal, retrieved] = await Promise.all([
         prisma.product.count({ where }),
         prisma.product.findMany(findArgs) as Promise<any[]>,
       ]);
-      const products = q && sort === 'relevance'
-        ? retrieved.sort((left, right) => agentCatalogMatchScore({ ...right, categorySlug: right.category?.slug, categoryName: right.category?.name, specs: right.specs }, q)
-          - agentCatalogMatchScore({ ...left, categorySlug: left.category?.slug, categoryName: left.category?.name, specs: left.specs }, q)
-          || right.rating - left.rating || left.id.localeCompare(right.id)).slice(offset, offset + limit)
-        : retrieved;
+      const candidates = retrieved.map((product) => ({
+        ...product,
+        categorySlug: product.category?.slug || null,
+        categoryName: product.category?.name || null,
+        imageUrl: product.images[0]?.url || null,
+      }));
+      const matches = q ? rankCatalogMatches(candidates, q) : [];
+      const orderedMatches = q ? [...matches].sort((left, right) => {
+        if (sort === 'price_asc') return Number(left.product.price) - Number(right.product.price) || right.relevance - left.relevance;
+        if (sort === 'price_desc') return Number(right.product.price) - Number(left.product.price) || right.relevance - left.relevance;
+        if (sort === 'rating_desc') return Number(right.product.rating || 0) - Number(left.product.rating || 0) || right.relevance - left.relevance;
+        return right.relevance - left.relevance || Number(right.product.rating || 0) - Number(left.product.rating || 0)
+          || String(left.product.id).localeCompare(String(right.product.id));
+      }) : [];
+      const pageEntries = q
+        ? orderedMatches.slice(offset, offset + limit)
+        : candidates.map((product) => ({ product, relevance: null }));
+      const total = q ? orderedMatches.length : candidateTotal;
+      const candidateCapReached = Boolean(q && candidateTotal > retrieved.length);
+      const pageProducts = pageEntries.map((entry) => toAgentCatalogProduct(entry.product, getIssuer(req)));
       setPublicCache(res, 20, 60);
       res.json({
-        products: products.map((product) => toAgentCatalogProduct({
-          ...product,
-          categorySlug: product.category?.slug || null,
-          categoryName: product.category?.name || null,
-          imageUrl: product.images[0]?.url || null,
-        }, getIssuer(req))),
-        pagination: { offset, limit, total, next_offset: offset + products.length < total ? offset + products.length : null },
+        products: pageProducts.map((product, index) => q ? { ...product, relevance: pageEntries[index].relevance } : product),
+        pagination: {
+          offset,
+          limit,
+          total,
+          next_offset: offset + pageEntries.length < total || candidateCapReached ? offset + pageEntries.length : null,
+        },
+        search: q ? {
+          query: q,
+          mode: 'taxonomy_aware_lexical',
+          query_terms: searchTerms,
+          candidate_total: candidateTotal,
+          candidate_cap_reached: candidateCapReached,
+        } : { mode: 'catalog_browse' },
+        // Facets describe the complete matched set for a query. On a plain
+        // browse they describe the returned page, keeping the endpoint fast.
+        facets: buildCatalogFacets((q ? orderedMatches.map((match) => match.product) : candidates)),
       });
     } catch (err) {
       console.error(err);

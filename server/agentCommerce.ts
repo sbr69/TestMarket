@@ -1,3 +1,5 @@
+import { catalogSearchScore, deriveCatalogTaxonomy } from './catalogTaxonomy';
+
 export type AgentCatalogProductInput = {
   id: string;
   name: string;
@@ -14,7 +16,6 @@ export type AgentCatalogProductInput = {
   imageUrl?: string | null;
 };
 
-const normalize = (value: unknown) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const unique = (values: string[]) => [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 
 function normalizedAttributes(product: AgentCatalogProductInput) {
@@ -23,7 +24,7 @@ function normalizedAttributes(product: AgentCatalogProductInput) {
     .map((spec) => `${String(spec.key).trim()}: ${String(spec.value).trim()}`)).sort((left, right) => left.localeCompare(right));
 }
 
-function agentDescription(product: AgentCatalogProductInput, attributes: string[]) {
+function agentDescription(product: AgentCatalogProductInput, attributes: string[], taxonomy: ReturnType<typeof deriveCatalogTaxonomy>) {
   const original = String(product.description || '').trim();
   // Seed/demo catalogues often contain the same marketing sentence on every
   // row. Do not let that boilerplate dominate semantic retrieval or the card.
@@ -32,8 +33,10 @@ function agentDescription(product: AgentCatalogProductInput, attributes: string[
   const classification = product.categoryName || product.categorySlug
     ? `Category: ${product.categoryName || product.categorySlug}.`
     : '';
+  const productType = taxonomy.productType ? `Product type: ${taxonomy.productType}.` : '';
+  const browsePath = taxonomy.taxonomyPath.length > 1 ? `Browse path: ${taxonomy.taxonomyPath.join(' › ')}.` : '';
   const details = attributes.length ? `Key details: ${attributes.slice(0, 6).join('; ')}.` : '';
-  return [identity, classification, details].filter(Boolean).join(' ');
+  return [identity, classification, productType, browsePath, details].filter(Boolean).join(' ');
 }
 
 /** TestMarket settles every agent-commerce order in Stellar testnet XLM. */
@@ -41,9 +44,11 @@ export function toAgentCatalogProduct(product: AgentCatalogProductInput, issuer:
   const attributes = normalizedAttributes(product);
   const category = product.categorySlug || null;
   const categoryName = product.categoryName || category || null;
+  const taxonomy = deriveCatalogTaxonomy(product);
   const tags = unique([
     category || '',
     categoryName || '',
+    ...taxonomy.tags,
     ...attributes.flatMap((attribute) => attribute.split(':').map((value) => value.trim())),
   ]);
   const priceStroops = Math.round((Number(product.price) + Number.EPSILON) * 10_000_000);
@@ -52,7 +57,7 @@ export function toAgentCatalogProduct(product: AgentCatalogProductInput, issuer:
     name: product.name,
     brand: product.brand || null,
     seller: product.sellerName || null,
-    description: agentDescription(product, attributes),
+    description: agentDescription(product, attributes, taxonomy),
     price: product.price,
     price_xlm: Number(product.price).toFixed(7),
     price_stroops: String(priceStroops),
@@ -63,7 +68,9 @@ export function toAgentCatalogProduct(product: AgentCatalogProductInput, issuer:
     review_count: product.reviewCount ?? null,
     category,
     category_name: categoryName,
-    product_type: categoryName,
+    product_type: taxonomy.productType,
+    taxonomy_path: taxonomy.taxonomyPath,
+    search_aliases: taxonomy.searchAliases,
     tags,
     attributes,
     image_url: product.imageUrl || null,
@@ -72,26 +79,11 @@ export function toAgentCatalogProduct(product: AgentCatalogProductInput, issuer:
 }
 
 /**
- * Deterministic lexical ordering for a merchant search endpoint. Semantic
- * ranking stays the responsibility of the calling shopping agent; this gives
- * every agent predictable, field-weighted retrieval without hidden coupling.
+ * Deterministic merchant relevance for catalogue discovery. The taxonomy is
+ * owned by TestMarket and is returned to every caller; an agent may combine
+ * this score with its own intent-aware ranking but must not substitute an
+ * unrelated product when this returns zero.
  */
 export function agentCatalogMatchScore(product: AgentCatalogProductInput, query: string) {
-  const phrase = normalize(query);
-  if (!phrase) return 0;
-  const terms = [...new Set(phrase.split(' ').filter((term) => term.length >= 2))];
-  const attributes = normalizedAttributes(product).join(' ');
-  const fields: Array<[string, number]> = [
-    [normalize(product.name), 40],
-    [normalize(product.brand), 14],
-    [normalize(product.categoryName || product.categorySlug), 12],
-    [normalize(attributes), 10],
-    [normalize(product.description), 6],
-  ];
-  return fields.reduce((total, [text, weight]) => {
-    if (!text) return total;
-    const phraseBonus = text.includes(phrase) ? weight * 3 : 0;
-    const termScore = terms.reduce((score, term) => score + (text.includes(term) ? weight : 0), 0);
-    return total + phraseBonus + termScore;
-  }, 0);
+  return catalogSearchScore(product, query);
 }

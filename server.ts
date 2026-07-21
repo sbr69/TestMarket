@@ -259,6 +259,10 @@ const PORT = Number(process.env.PORT) || 3000;
   });
   const OAUTH_SCOPES = ['profile', 'cart:read', 'cart:write', 'checkout:prepare', 'checkout:confirm', 'orders:read'] as const;
   const DEFAULT_OAUTH_SCOPES = ['profile', 'cart:read', 'checkout:prepare', 'checkout:confirm', 'orders:read'];
+  // Disabled unless explicitly enabled for temporary JarvisPayz test
+  // onboarding. The standard browser OAuth consent flow remains unchanged.
+  const jarvisPayzAutoGrantSecret = process.env.JARVISPAYZ_TEST_AUTOGRANT_SECRET || '';
+  const jarvisPayzAutoGrantEnabled = process.env.ENABLE_JARVISPAYZ_TEST_AUTOGRANT === 'true' && jarvisPayzAutoGrantSecret.length >= 32;
   const scopeList = (value: unknown) => [...new Set(getString(value, 1_000).split(/\s+/).filter(Boolean))];
   const scopeString = (scopes: string[]) => scopes.join(' ');
   const clientScopes = (client: any) => scopeList(client.allowedScopes || scopeString(DEFAULT_OAUTH_SCOPES));
@@ -633,6 +637,43 @@ const PORT = Number(process.env.PORT) || 3000;
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'server_error', error_description: 'Unable to register client' });
+    }
+  });
+
+  app.post('/api/agent/commerce/v1/test-grants', authRateLimit, async (req, res) => {
+    // Do not advertise this endpoint while it is disabled. The secret is used
+    // only between JarvisPayz and TestMarket servers and is never sent to a
+    // browser or stored in an OAuth client.
+    if (!jarvisPayzAutoGrantEnabled) return res.status(404).json({ error: 'Not found' });
+    const suppliedSecret = getString(req.get('X-JarvisPayz-Test-Grant'), 512);
+    const expectedSecret = Buffer.from(jarvisPayzAutoGrantSecret);
+    const suppliedBuffer = Buffer.from(suppliedSecret);
+    if (suppliedBuffer.length !== expectedSecret.length || !crypto.timingSafeEqual(suppliedBuffer, expectedSecret)) {
+      return res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED', status: 401 });
+    }
+    try {
+      const { clientId, clientSecret } = parseClientCredentials(req);
+      const client = await verifyOAuthClient(clientId, clientSecret);
+      if (!client) return oauthError(res, 401, 'invalid_client', 'Client authentication failed');
+      const subject = getString(req.body?.subject, 80);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subject)) {
+        return res.status(400).json({ error: 'Invalid test subject', code: 'BAD_REQUEST', status: 400 });
+      }
+      const subjectHash = crypto.createHash('sha256').update(subject).digest('hex');
+      const email = `jarvispayz-test-${subjectHash.slice(0, 32)}@testmarket.invalid`;
+      const user = await (prisma as any).user.upsert({
+        where: { email },
+        update: {},
+        create: {
+          name: 'JarvisPayz Test Shopper',
+          email,
+          passwordHash: await bcrypt.hash(oauthRandomToken(), 12),
+        },
+      });
+      return res.json(await issueOAuthTokens(user.id, client.clientId, DEFAULT_OAUTH_SCOPES));
+    } catch (err) {
+      console.error('JarvisPayz test auto-grant failed:', err);
+      return oauthError(res, 500, 'server_error', 'Unable to issue test authorization');
     }
   });
 

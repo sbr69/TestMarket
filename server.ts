@@ -381,7 +381,10 @@ const PORT = Number(process.env.PORT) || 3000;
       });
       if (consumed.count !== 1) return res.status(401).json({ error: 'Wallet sign-in challenge has expired or was already used' });
 
-      const email = `${publicKey}@stellar.wallet`;
+      // Keep the wallet identity canonical. The temporary JarvisPayz grant
+      // uses this same normalized identity so an order remains visible when
+      // the shopper later signs in to TestMarket with that Stellar wallet.
+      const email = normalizeEmail(`${publicKey}@stellar.wallet`);
       const name = `${publicKey.substring(0, 5)}...${publicKey.substring(publicKey.length - 4)}`;
 
       let user = await prisma.user.findUnique({ where: { email } });
@@ -660,16 +663,30 @@ const PORT = Number(process.env.PORT) || 3000;
         return res.status(400).json({ error: 'Invalid test subject', code: 'BAD_REQUEST', status: 400 });
       }
       const subjectHash = crypto.createHash('sha256').update(subject).digest('hex');
-      const email = `jarvispayz-test-${subjectHash.slice(0, 32)}@testmarket.invalid`;
-      const user = await (prisma as any).user.upsert({
-        where: { email },
-        update: {},
-        create: {
-          name: 'JarvisPayz Test Shopper',
-          email,
-          passwordHash: await bcrypt.hash(oauthRandomToken(), 12),
-        },
-      });
+      const legacyEmail = `jarvispayz-test-${subjectHash.slice(0, 32)}@testmarket.invalid`;
+      const requestedEmail = normalizeEmail(req.body?.email);
+      const email = isValidEmail(requestedEmail) ? requestedEmail : legacyEmail;
+      const name = getString(req.body?.name, 100) || 'JarvisPayz Test Shopper';
+
+      // Earlier test grants used an internal placeholder email. When a real
+      // account identity is now supplied, promote that exact record rather
+      // than creating another user. Its existing orders therefore remain
+      // attached to the account that will later sign in to TestMarket.
+      let user = await (prisma as any).user.findUnique({ where: { email } });
+      if (!user && email !== legacyEmail) {
+        const legacyUser = await (prisma as any).user.findUnique({ where: { email: legacyEmail } });
+        if (legacyUser) {
+          user = await (prisma as any).user.update({
+            where: { id: legacyUser.id },
+            data: { email, name: legacyUser.name === 'JarvisPayz Test Shopper' ? name : legacyUser.name },
+          });
+        }
+      }
+      if (!user) {
+        user = await (prisma as any).user.create({
+          data: { name, email, passwordHash: await bcrypt.hash(oauthRandomToken(), 12) },
+        });
+      }
       return res.json(await issueOAuthTokens(user.id, client.clientId, DEFAULT_OAUTH_SCOPES));
     } catch (err) {
       console.error('JarvisPayz test auto-grant failed:', err);
